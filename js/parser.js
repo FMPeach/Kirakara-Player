@@ -251,3 +251,4 @@ function parseLyrics(lrcRaw, entryBuf, config) {
 
     console.log('[Parse] 解析完成:', lyrics.length, '条歌词');
     return lyrics;
+}
