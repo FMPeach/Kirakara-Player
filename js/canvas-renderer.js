@@ -91,7 +91,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         dcx.font = font;
 
         const groups = [];
-        for (let i = 0; i < line.chars.length; ) {
+        for (let i = 0; i < line.chars.length;) {
             const c = line.chars[i], span = c.rubySpan || 0;
             if (span > 1 && c.ruby) { groups.push({ ruby: c.ruby, rubyChars: c.rubyChars || null, chars: line.chars.slice(i, i + span) }); i += span; }
             else { groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, chars: [c] }); i += 1; }
@@ -130,7 +130,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
 
                 if (rChars && rChars.length > 1) {
                     // 逐假名独立定位+走字
-                    const rCharWidths = rChars.map(rc => dcx.measureText(rc.char).width);
+                    // 使用 DOM 测量（measureTotalWidth）与 DOM 渲染器保持一致，避免 Canvas measureText 对小假名测量偏差
+                    const rfwStr = config.rubyBold ? 'bold' : 'normal';
+                    const rCharWidths = rChars.map(rc => measureTotalWidth(rc.char, rfs, ff, 0, rfwStr));
                     const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rChars.length - 1) * rls;
                     const rStartX = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rTotalW / 2;
                     const ry = y - fs * 1.0 - config.rubyOffset;
@@ -158,81 +160,92 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         rxCursor += cw + rls;
                     }
                 } else {
-                    // 整串一次性走字
-                    const rDomW = measureTotalWidth(g.ruby, rfs, ff, rls, rfw.trim() || 'normal');
-                    const rx = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rDomW / 2;
+                    // 整串一次性走字 — 逐字符渲染以保证 letterSpacing 生效（Canvas fillText 不支持 letterSpacing）
+                    const rCharsArr = [...g.ruby];
+                    const rfwStr2 = config.rubyBold ? 'bold' : 'normal';
+                    const rCharWidths = rCharsArr.map(ch => measureTotalWidth(ch, rfs, ff, 0, rfwStr2));
+                    const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rCharsArr.length - 1) * rls;
+                    const rx = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rTotalW / 2;
                     const ry = y - fs * 1.0 - config.rubyOffset;
                     const rpInfo = calcProgress(g.ruby, time, gStart, gEnd, true, config);
 
-                    drawShadowStrokeText(dcx, g.ruby, rx, ry, config.strokeColorBefore, rlw);
-                    dcx.fillStyle = config.colorBefore; dcx.fillText(g.ruby, rx, ry);
+                    let rxCursor = rx;
+                    for (let ri = 0; ri < rCharsArr.length; ri++) {
+                        const ch = rCharsArr[ri];
+                        const cw = rCharWidths[ri];
 
-                    dcx.save(); dcx.beginPath();
-                    dcx.rect(rx - rpInfo.pad, ry - rfs * 2.5, (rpInfo.pct / 100) * rpInfo.total, rfs * 4);
-                    dcx.clip();
-                    drawShadowStrokeText(dcx, g.ruby, rx, ry, config.strokeColorAfter, rlw);
-                    dcx.fillStyle = config.colorAfter; dcx.fillText(g.ruby, rx, ry);
-                    dcx.restore();
+                        drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorBefore, rlw);
+                        dcx.fillStyle = config.colorBefore; dcx.fillText(ch, rxCursor, ry);
+
+                        dcx.save(); dcx.beginPath();
+                        dcx.rect(rxCursor - rpInfo.pad, ry - rfs * 2.5, (rpInfo.pct / 100) * rpInfo.total, rfs * 4);
+                        dcx.clip();
+                        drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorAfter, rlw);
+                        dcx.fillStyle = config.colorAfter; dcx.fillText(ch, rxCursor, ry);
+                        dcx.restore();
+
+                        rxCursor += cw + rls;
+                    }
                 }
             }
 
             dcx.font = font;
             for (let ci = 0; ci < g.chars.length; ci++) {
-                const c = g.chars[ci];
-                let pInfo;
-                if (g.rubyChars && g.rubyChars.length > 1) {
-                    const rawPct = calcGroupedProgress(g.chars, g.rubyChars, ci, time);
-                    pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config, rawPct);
-                } else {
-                    pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config);
+                    const c = g.chars[ci];
+                    let pInfo;
+                    if (g.rubyChars && g.rubyChars.length > 1) {
+                        const rawPct = calcGroupedProgress(g.chars, g.rubyChars, ci, time);
+                        pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config, rawPct);
+                    } else {
+                        pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config);
+                    }
+
+                    drawShadowStrokeText(dcx, c.text, c._x, y, config.strokeColorBefore, sw);
+                    dcx.fillStyle = config.colorBefore; dcx.fillText(c.text, c._x, y);
+
+                    dcx.save(); dcx.beginPath();
+                    dcx.rect(c._x - pInfo.pad, y - fs * 2.5, (pInfo.pct / 100) * pInfo.total, fs * 4);
+                    dcx.clip();
+                    drawShadowStrokeText(dcx, c.text, c._x, y, config.strokeColorAfter, sw);
+                    dcx.fillStyle = config.colorAfter; dcx.fillText(c.text, c._x, y);
+                    dcx.restore();
                 }
-
-                drawShadowStrokeText(dcx, c.text, c._x, y, config.strokeColorBefore, sw);
-                dcx.fillStyle = config.colorBefore; dcx.fillText(c.text, c._x, y);
-
-                dcx.save(); dcx.beginPath();
-                dcx.rect(c._x - pInfo.pad, y - fs * 2.5, (pInfo.pct / 100) * pInfo.total, fs * 4);
-                dcx.clip();
-                drawShadowStrokeText(dcx, c.text, c._x, y, config.strokeColorAfter, sw);
-                dcx.fillStyle = config.colorAfter; dcx.fillText(c.text, c._x, y);
-                dcx.restore();
             }
-        }
-    };
+        };
 
-    // 离屏 canvas（淡入淡出合成用）
-    let _offCanvas = null, _offCtx = null;
+        // 离屏 canvas（淡入淡出合成用）
+        let _offCanvas = null, _offCtx = null;
 
-    const drawLine = (line, x, y, alignRight) => {
-        if (!line || !line.chars) return;
-        const fadeOp = getFadeOpacity(line);
-        if (fadeOp <= 0) return;
-        if (fadeOp >= 1) {
-            drawLineCore(ctx, line, x, y, alignRight);
-        } else {
-            const mainCanvas = ctx.canvas;
-            if (!_offCanvas || _offCanvas.width !== mainCanvas.width || _offCanvas.height !== mainCanvas.height) {
-                _offCanvas = document.createElement('canvas');
-                _offCanvas.width = mainCanvas.width;
-                _offCanvas.height = mainCanvas.height;
-                _offCtx = _offCanvas.getContext('2d');
+        const drawLine = (line, x, y, alignRight) => {
+            if (!line || !line.chars) return;
+            const fadeOp = getFadeOpacity(line);
+            if (fadeOp <= 0) return;
+            if (fadeOp >= 1) {
+                drawLineCore(ctx, line, x, y, alignRight);
+            } else {
+                const mainCanvas = ctx.canvas;
+                if (!_offCanvas || _offCanvas.width !== mainCanvas.width || _offCanvas.height !== mainCanvas.height) {
+                    _offCanvas = document.createElement('canvas');
+                    _offCanvas.width = mainCanvas.width;
+                    _offCanvas.height = mainCanvas.height;
+                    _offCtx = _offCanvas.getContext('2d');
+                }
+                const t = ctx.getTransform();
+                _offCtx.setTransform(t);
+                _offCtx.clearRect(0, 0, mainCanvas.width / (t.a || 1), mainCanvas.height / (t.d || 1));
+                drawLineCore(_offCtx, line, x, y, alignRight);
+
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.globalAlpha = fadeOp;
+                ctx.drawImage(_offCanvas, 0, 0);
+                ctx.restore();
             }
-            const t = ctx.getTransform();
-            _offCtx.setTransform(t);
-            _offCtx.clearRect(0, 0, mainCanvas.width / (t.a || 1), mainCanvas.height / (t.d || 1));
-            drawLineCore(_offCtx, line, x, y, alignRight);
+        };
 
-            ctx.save();
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.globalAlpha = fadeOp;
-            ctx.drawImage(_offCanvas, 0, 0);
-            ctx.restore();
-        }
-    };
+        const topBaseOffset = config.fontSize;
+        const botBaseOffset = -Math.round(config.fontSize * 0.20);
 
-    const topBaseOffset = config.fontSize;
-    const botBaseOffset = -Math.round(config.fontSize * 0.20);
-
-    if (l1) drawLine(l1, config.line1X, config.line1Y + topBaseOffset, false);
-    if (l2) drawLine(l2, 0, 720 - config.line2Bottom + botBaseOffset, true);
+        if (l1) drawLine(l1, config.line1X, config.line1Y + topBaseOffset, false);
+        if (l2) drawLine(l2, 0, 720 - config.line2Bottom + botBaseOffset, true);
 }
