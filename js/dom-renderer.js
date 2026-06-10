@@ -40,6 +40,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         fontSize: `${fontSize}px`, letterSpacing: `${letterSpacing}px`,
         lineHeight: '1.1', whiteSpace: 'pre',
         padding: `${safePad}px`, display: 'inline-block',
+        backfaceVisibility: 'hidden',  // 强制灰度抗锯齿，消除小字号 ClearType 彩边
     };
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: -(safePad + (letterSpacing || 0)) } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
