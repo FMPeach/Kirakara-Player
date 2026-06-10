@@ -132,32 +132,46 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     // 逐假名独立定位+走字
                     // 使用 DOM 测量（measureTotalWidth）与 DOM 渲染器保持一致，避免 Canvas measureText 对小假名测量偏差
                     const rfwStr = config.rubyBold ? 'bold' : 'normal';
-                    const rCharWidths = rChars.map(rc => measureTotalWidth(rc.char, rfs, ff, 0, rfwStr));
-                    const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rChars.length - 1) * rls;
+                    // 展平所有假名到单字符级别（处理 "ちょ" 这种多字符条目）
+                    const flatChars = [];
+                    for (const rc of rChars) {
+                        const chars = [...rc.char];
+                        for (const ch of chars) {
+                            flatChars.push({ char: ch, offsetSec: rc.offsetSec, width: measureTotalWidth(ch, rfs, ff, 0, rfwStr) });
+                        }
+                    }
+                    const rTotalW = flatChars.reduce((s, fc) => s + fc.width, 0) + (flatChars.length - 1) * rls;
                     const rStartX = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rTotalW / 2;
-                    const ry = y - fs * 1.0 - config.rubyOffset;
+                    const ry = y - fs * 1.04 - config.rubyOffset;
 
                     let rxCursor = rStartX;
+                    let flatIdx = 0;
                     for (let ri = 0; ri < rChars.length; ri++) {
                         const rc = rChars[ri];
-                        const cw = rCharWidths[ri];
                         const chStart = gStart + (rc.offsetSec || (gEnd - gStart) * ri / rChars.length);
                         const chEnd = (ri + 1 < rChars.length)
                             ? gStart + (rChars[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / rChars.length)
                             : gEnd;
                         const chInfo = calcProgress(rc.char, time, chStart, chEnd, true, config);
+                        const subChars = [...rc.char];
 
-                        drawShadowStrokeText(dcx, rc.char, rxCursor, ry, config.strokeColorBefore, rlw);
-                        dcx.fillStyle = config.colorBefore; dcx.fillText(rc.char, rxCursor, ry);
+                        for (let si = 0; si < subChars.length; si++) {
+                            const ch = subChars[si];
+                            const cw = flatChars[flatIdx].width;
+                            flatIdx++;
 
-                        dcx.save(); dcx.beginPath();
-                        dcx.rect(rxCursor - chInfo.pad, ry - rfs * 2.5, (chInfo.pct / 100) * chInfo.total, rfs * 4);
-                        dcx.clip();
-                        drawShadowStrokeText(dcx, rc.char, rxCursor, ry, config.strokeColorAfter, rlw);
-                        dcx.fillStyle = config.colorAfter; dcx.fillText(rc.char, rxCursor, ry);
-                        dcx.restore();
+                            drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorBefore, rlw);
+                            dcx.fillStyle = config.colorBefore; dcx.fillText(ch, rxCursor, ry);
 
-                        rxCursor += cw + rls;
+                            dcx.save(); dcx.beginPath();
+                            dcx.rect(rxCursor - chInfo.pad, ry - rfs * 2.5, (chInfo.pct / 100) * chInfo.total, rfs * 4);
+                            dcx.clip();
+                            drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorAfter, rlw);
+                            dcx.fillStyle = config.colorAfter; dcx.fillText(ch, rxCursor, ry);
+                            dcx.restore();
+
+                            rxCursor += cw + rls;
+                        }
                     }
                 } else {
                     // 整串一次性走字 — 逐字符渲染以保证 letterSpacing 生效（Canvas fillText 不支持 letterSpacing）
@@ -166,7 +180,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const rCharWidths = rCharsArr.map(ch => measureTotalWidth(ch, rfs, ff, 0, rfwStr2));
                     const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rCharsArr.length - 1) * rls;
                     const rx = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rTotalW / 2;
-                    const ry = y - fs * 1.0 - config.rubyOffset;
+                    const ry = y - fs * 1.04 - config.rubyOffset;
                     const rpInfo = calcProgress(g.ruby, time, gStart, gEnd, true, config);
 
                     let rxCursor = rx;
@@ -243,8 +257,8 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             }
         };
 
-        const topBaseOffset = config.fontSize;
-        const botBaseOffset = -Math.round(config.fontSize * 0.20);
+        const topBaseOffset = config.fontSize - 1;
+        const botBaseOffset = -Math.round(config.fontSize * 0.20) - 1;
 
         if (l1) drawLine(l1, config.line1X, config.line1Y + topBaseOffset, false);
         if (l2) drawLine(l2, 0, 720 - config.line2Bottom + botBaseOffset, true);
