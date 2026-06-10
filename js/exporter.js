@@ -36,6 +36,7 @@ async function doExportCanvas({
 
         // === mp4box + VideoDecoder 帧提取器 ===
         let frameProvider = null;
+        let videoW = w, videoH = h;  // 视频原始尺寸，默认等于画布
 
         if (hasVideo && typeof MP4Box !== 'undefined' && typeof VideoDecoder !== 'undefined') {
             try {
@@ -50,6 +51,9 @@ async function doExportCanvas({
                     file.onReady = (info) => {
                         trackInfo = info.videoTracks[0];
                         if (!trackInfo) { reject(new Error('无视频轨道')); return; }
+                        // 显示尺寸：优先用 track_width/height（已含像素宽高比变换），回退 coded 尺寸
+                        videoW = trackInfo.track_width || trackInfo.video.width;
+                        videoH = trackInfo.track_height || trackInfo.video.height;
                         file.setExtractionOptions(trackInfo.id);
                         file.onSamples = (_id, _user, s) => {
                             for (const sample of s) {
@@ -362,15 +366,34 @@ async function doExportCanvas({
             }
 
             octx.clearRect(0, 0, w, h);
-            if (decodedVf) { octx.drawImage(decodedVf, 0, 0, w, h); }
-            else if (exportVideoEl && exportVideoEl.readyState >= 2) { octx.drawImage(exportVideoEl, 0, 0, w, h); }
-            else if (bgImgObj && bgImgObj.complete && bgImgObj.naturalWidth > 0) {
+
+            // 背景填充（视频有黑边 / 背景图 / 背景色）
+            if (decodedVf || (exportVideoEl && exportVideoEl.readyState >= 2)) {
+                octx.fillStyle = '#000';
+                octx.fillRect(0, 0, w, h);
+            } else if (bgImgObj && bgImgObj.complete && bgImgObj.naturalWidth > 0) {
                 octx.save(); octx.filter = 'blur(20px) brightness(0.4)'; octx.drawImage(bgImgObj, 0, 0, w, h); octx.restore();
                 octx.save(); octx.globalAlpha = config.bgImageOpacity ?? 1;
-                const s = Math.min(w / bgImgObj.naturalWidth, h / bgImgObj.naturalHeight);
-                octx.drawImage(bgImgObj, (w - bgImgObj.naturalWidth * s) / 2, (h - bgImgObj.naturalHeight * s) / 2, bgImgObj.naturalWidth * s, bgImgObj.naturalHeight * s);
+                const sbg = Math.min(w / bgImgObj.naturalWidth, h / bgImgObj.naturalHeight);
+                octx.drawImage(bgImgObj, (w - bgImgObj.naturalWidth * sbg) / 2, (h - bgImgObj.naturalHeight * sbg) / 2, bgImgObj.naturalWidth * sbg, bgImgObj.naturalHeight * sbg);
                 octx.restore();
-            } else { octx.fillStyle = config.bgColor || '#000'; octx.fillRect(0, 0, w, h); }
+            } else {
+                octx.fillStyle = config.bgColor || '#000';
+                octx.fillRect(0, 0, w, h);
+            }
+
+            // 视频帧：letterbox 保持宽高比（与 DOM object-fit:contain 一致）
+            if (decodedVf) {
+                const scale = Math.min(w / videoW, h / videoH);
+                const dw = videoW * scale, dh = videoH * scale;
+                octx.drawImage(decodedVf, (w - dw) / 2, (h - dh) / 2, dw, dh);
+            } else if (exportVideoEl && exportVideoEl.readyState >= 2) {
+                const evw = exportVideoEl.videoWidth || videoW;
+                const evh = exportVideoEl.videoHeight || videoH;
+                const scale = Math.min(w / evw, h / evh);
+                const dw = evw * scale, dh = evh * scale;
+                octx.drawImage(exportVideoEl, (w - dw) / 2, (h - dh) / 2, dw, dh);
+            }
 
             octx.save(); octx.scale(w / 1280, h / 720);
             drawLyricsOnCanvas(octx, parsedData, targetTime, config, entryBuf);
