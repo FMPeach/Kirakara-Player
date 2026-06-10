@@ -288,6 +288,7 @@
                                     <div><label>编码格式</label><select value={expCodec} onChange={e=>setExpCodec(e.target.value)}><option value="vp9">VP9 (推荐)</option><option value="vp8">VP8</option><option value="h264">H.264</option></select></div>
                                 </div>
                                 <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setShowExportModal(false)}>取消</button><button className="btn btn-primary" onClick={doExport}>开始导出</button></div>
+                                <div className="export-tips mt-3 text-xs text-zinc-400">注：导出的视频为webm格式，且不含音频流，请自行混流音轨。</div>
                             </div>
                         </div>}
                     </div>

@@ -18,7 +18,7 @@ function getVP9CodecString(width, height, fps) {
     return `vp09.00.${level}.08`;
 }
 
-async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, log) {
+async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, log = () => {}) {
     const candidates = [preferredCodec];
     if (preferredCodec !== 'vp8') candidates.push('vp8');
 

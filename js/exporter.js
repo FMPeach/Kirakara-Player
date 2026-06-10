@@ -36,6 +36,7 @@ async function doExportCanvas({
 
         // === mp4box + VideoDecoder 帧提取器 ===
         let frameProvider = null;
+
         if (hasVideo && typeof MP4Box !== 'undefined' && typeof VideoDecoder !== 'undefined') {
             try {
                 setExpEta('解析视频流...');
@@ -72,7 +73,7 @@ async function doExportCanvas({
                     }, 1000);
                 });
 
-                console.log('[Export] mp4box 解析:', samples.length, 'samples,', trackInfo.codec, trackInfo.video.width + 'x' + trackInfo.video.height);
+                // mp4box parsed
 
                 // === avcC 提取（从 mp4box internalTrack.stsd） ===
                 let codecDesc = null;
@@ -120,7 +121,7 @@ async function doExportCanvas({
                                 for (const s of sl) { codecDesc[off++] = (s.length >> 8) & 0xFF; codecDesc[off++] = s.length & 0xFF; codecDesc.set(s, off); off += s.length; }
                                 codecDesc[off++] = pl.length & 0xFF;
                                 for (const p of pl) { codecDesc[off++] = (p.length >> 8) & 0xFF; codecDesc[off++] = p.length & 0xFF; codecDesc.set(p, off); off += p.length; }
-                                console.log('[Export] avcC 序列化:', codecDesc.length, 'B');
+                                // codecDesc built
                             }
                         }
                     }
@@ -130,26 +131,61 @@ async function doExportCanvas({
                 const isAVC1 = rawCodec.startsWith('avc1');
                 if (isAVC1 && !codecDesc) throw new Error(rawCodec + ' 缺少 codec description');
 
-                // === VideoDecoder + 生产者-消费者流水线 ===
+                // === VideoDecoder + 双背压流水线 ===
                 const FRAME_QUEUE_MAX = 150;
                 const frameQueue = [];
                 let decodeIdx = 0, decodeDone = false, feedLoopErr = null;
 
+                // === 异步背压通知器===
+                const _frameWaiters = [];   // getFrameAt 等待者: { resolve }
+                const _drainWaiters = [];   // feedLoop 背压等待者: resolve 函数
+                const _notifyFrameWaiters = () => { const ws = _frameWaiters.splice(0); for (const w of ws) w.resolve(); };
+                const _notifyDrainWaiters = () => { const ws = _drainWaiters.splice(0); for (const w of ws) w(); };
+                const _notifyAllWaiters = () => { _notifyFrameWaiters(); _notifyDrainWaiters(); };
+
                 const decoder = new VideoDecoder({
-                    output: (vf) => { frameQueue.push({ timeSec: vf.timestamp / 1_000_000, frame: vf }); },
+                    output: (vf) => {
+                        if (frameQueue.length >= FRAME_QUEUE_MAX * 2) {
+                            try { vf.close(); } catch (_) {}
+                            return;
+                        }
+                        frameQueue.push({ timeSec: vf.timestamp / 1_000_000, frame: vf });
+                        if (_frameWaiters.length > 0) _notifyFrameWaiters();
+                        if (_drainWaiters.length > 0) _notifyDrainWaiters();
+                    },
                     error: e => console.error('[Export] VideoDecoder error:', e),
                 });
                 const decoderConfig = { codec: rawCodec || 'avc1.42001f', codedWidth: trackInfo.video.width, codedHeight: trackInfo.video.height };
                 if (codecDesc) decoderConfig.description = codecDesc;
                 decoder.configure(decoderConfig);
-                console.log('[Export] VideoDecoder 配置:', decoderConfig.codec, 'desc=' + (codecDesc ? codecDesc.length + 'B' : '无'));
+
+                // === MessageChannel yield（替代 setTimeout(0)，不受后台 timer 节流）===
+                const _yieldToEventLoop = () => new Promise(resolve => {
+                    const { port1, port2 } = new MessageChannel();
+                    port1.onmessage = resolve;
+                    port2.postMessage(null);
+                });
 
                 const feedLoop = async () => {
                     try {
-                        const BATCH = 10;
+                        const MAX_DQS = 60;
+                        const BATCH_MAX = 40;
+                        const BATCH_MIN = 3;
                         while (decodeIdx < samples.length) {
-                            while (frameQueue.length >= FRAME_QUEUE_MAX) await new Promise(r => setTimeout(r, 5));
-                            const end = Math.min(decodeIdx + BATCH, samples.length);
+                            // 双重背压
+                            while (frameQueue.length >= FRAME_QUEUE_MAX || decoder.decodeQueueSize >= MAX_DQS) {
+                                if (decoder.decodeQueueSize >= MAX_DQS) {
+                                    await _yieldToEventLoop();
+                                }
+                                if (frameQueue.length >= FRAME_QUEUE_MAX) {
+                                    await new Promise(r => { _drainWaiters.push(r); });
+                                }
+                            }
+
+                            const dqs = decoder.decodeQueueSize;
+                            const room = MAX_DQS - dqs;
+                            const dynamicBatch = Math.max(BATCH_MIN, Math.min(BATCH_MAX, room));
+                            const end = Math.min(decodeIdx + dynamicBatch, samples.length);
                             for (let j = decodeIdx; j < end; j++) {
                                 const s = samples[j];
                                 decoder.decode(new EncodedVideoChunk({
@@ -160,50 +196,120 @@ async function doExportCanvas({
                                 }));
                             }
                             decodeIdx = end;
-                            await new Promise(r => setTimeout(r, 0));
+                            await _yieldToEventLoop();
                         }
                         await decoder.flush();
                         decodeDone = true;
-                    } catch (e) { feedLoopErr = e; decodeDone = true; console.error('[Export] feedLoop 异常:', e); }
+                        _notifyAllWaiters();
+                    } catch (e) { feedLoopErr = e; decodeDone = true; _notifyAllWaiters(); console.error('[Export] feedLoop error:', e.message || e); }
                 };
                 feedLoop();
 
                 const EPS = 0.0005;
+                const MAX_DRIFT = 1.0 / fps;
+                let _lastFrameTS = -1, _reuseCount = 0;
+
                 const getFrameAt = async (targetSec) => {
                     if (feedLoopErr) return null;
-                    while (frameQueue.length >= 2 && frameQueue[1].timeSec <= targetSec + EPS) {
-                        try { frameQueue[0].frame.close(); } catch (_) {}
-                        frameQueue.shift();
-                    }
-                    if (frameQueue.length > 0 && frameQueue[0].timeSec + EPS >= targetSec) return frameQueue[0].frame;
-                    if (frameQueue.length >= 2 && frameQueue[0].timeSec + EPS < targetSec) {
-                        try { frameQueue[0].frame.close(); } catch (_) {}
-                        frameQueue.shift();
-                        return frameQueue[0].frame;
-                    }
-                    if (frameQueue.length === 1 && frameQueue[0].timeSec + EPS < targetSec) return frameQueue[0].frame;
-                    let waitStart = performance.now();
-                    while (frameQueue.length === 0) {
-                        if (decodeDone || feedLoopErr) break;
-                        if (performance.now() - waitStart > 15000) break;
-                        await new Promise(r => setTimeout(r, 50));
-                    }
-                    if (feedLoopErr) return null;
-                    if (frameQueue.length > 0) {
+
+                    // === 内部函数：清理过期帧并查找最佳匹配 ===
+                    // 返回 { frame, timeSec } 或 { needWait: true } 或 null
+                    const _tryGetFrame = () => {
+                        // Path A: 清理所有完全过期的帧
+                        let cleaned = false;
+                        while (frameQueue.length >= 2 && frameQueue[1].timeSec <= targetSec + EPS) {
+                            try { frameQueue[0].frame.close(); } catch (_) {}
+                            frameQueue.shift();
+                            cleaned = true;
+                        }
+                        if (cleaned) _notifyDrainWaiters();
+
+                        if (frameQueue.length === 0) return null;
+
+                        // Path B: 首帧已到达或超过 target → 精确匹配
+                        if (frameQueue[0].timeSec + EPS >= targetSec) {
+                            const f = frameQueue[0].frame;
+                            const ts = frameQueue[0].timeSec;
+                            if (ts === _lastFrameTS) { _reuseCount++; if (_reuseCount > 10) console.warn('[Export] ⚠️ 连续复用同一帧 ' + _reuseCount + ' 次  timeSec=' + ts.toFixed(4) + '  targetSec=' + targetSec.toFixed(4) + '  queue.length=' + frameQueue.length); }
+                            else { _reuseCount = 1; _lastFrameTS = ts; }
+                            return { frame: f, timeSec: ts };
+                        }
+
+                        // 搜索第一个 >= targetSec 的帧
                         for (let fi = 0; fi < frameQueue.length; fi++) {
                             if (frameQueue[fi].timeSec + EPS >= targetSec) {
                                 for (let dj = 0; dj < fi; dj++) try { frameQueue[dj].frame.close(); } catch (_) {}
                                 frameQueue.splice(0, fi);
-                                return frameQueue[0].frame;
+                                _notifyDrainWaiters();
+                                const ts = frameQueue[0].timeSec;
+                                return { frame: frameQueue[0].frame, timeSec: ts };
                             }
                         }
+
+                        // 所有帧都 < targetSec → 检查最后一帧漂移
                         const lastIdx = frameQueue.length - 1;
-                        for (let dj = 0; dj < lastIdx; dj++) try { frameQueue[dj].frame.close(); } catch (_) {}
-                        const last = frameQueue[lastIdx];
-                        frameQueue.splice(0, lastIdx);
-                        return last.frame;
+                        const lastDrift = targetSec - frameQueue[lastIdx].timeSec;
+
+                        if (lastDrift <= MAX_DRIFT || decodeDone) {
+                            // 漂移可接受（≤1帧）或解码已完成
+                            for (let dj = 0; dj < lastIdx; dj++) try { frameQueue[dj].frame.close(); } catch (_) {}
+                            const lastItem = frameQueue[lastIdx];
+                            frameQueue.splice(0, lastIdx);
+                            _notifyDrainWaiters();
+                            return { frame: lastItem.frame, timeSec: lastItem.timeSec };
+                        }
+
+                        // 漂移过大且解码未完成 → 需要等待新帧
+                        return { needWait: true };
+                    };
+
+                    // 首次尝试
+                    const result = _tryGetFrame();
+                    if (result && !result.needWait) return result.frame;
+
+                    // === Promise 风格等待（零轮询）===
+                    const MAX_WAIT_MS = 60000;
+                    const waitStart = performance.now();
+
+                    while (true) {
+                        if (feedLoopErr) return null;
+
+                        if (decodeDone) {
+                            const retry = _tryGetFrame();
+                            if (retry && !retry.needWait) return retry.frame;
+                            if (frameQueue.length > 0) {
+                                const last = frameQueue[frameQueue.length - 1];
+                                for (let dj = 0; dj < frameQueue.length - 1; dj++) try { frameQueue[dj].frame.close(); } catch (_) {}
+                                frameQueue.splice(0, frameQueue.length - 1);
+                                _notifyDrainWaiters();
+                                return last.frame;
+                            }
+                            return null;
+                        }
+
+                        if (performance.now() - waitStart > MAX_WAIT_MS) {
+                            console.warn('[Export] getFrameAt 等待超时 ' + (MAX_WAIT_MS / 1000) + 's  target=' + targetSec.toFixed(4));
+                            const retry = _tryGetFrame();
+                            if (retry && !retry.needWait) return retry.frame;
+                            if (frameQueue.length > 0) {
+                                const last = frameQueue[frameQueue.length - 1];
+                                for (let dj = 0; dj < frameQueue.length - 1; dj++) try { frameQueue[dj].frame.close(); } catch (_) {}
+                                frameQueue.splice(0, frameQueue.length - 1);
+                                _notifyDrainWaiters();
+                                return last.frame;
+                            }
+                            return null;
+                        }
+
+                        // 等待 decoder.output 推送新帧 → Promise resolve 唤醒
+                        const waitEntry = {};
+                        const waitPromise = new Promise(r => { waitEntry.resolve = r; _frameWaiters.push(waitEntry); });
+                        await waitPromise;
+
+                        // 被唤醒，重新尝试
+                        const retry = _tryGetFrame();
+                        if (retry && !retry.needWait) return retry.frame;
                     }
-                    return null;
                 };
 
                 while (frameQueue.length < 30 && !decodeDone) await new Promise(r => setTimeout(r, 50));
@@ -235,10 +341,11 @@ async function doExportCanvas({
             output: chunk => { const buf = new Uint8Array(chunk.byteLength); chunk.copyTo(buf); encChunks.push({ data: buf, timestamp: chunk.timestamp, isKey: chunk.type === 'key' }); },
             error: e => { encError = e; console.error(e); },
         });
-        const actualCodec = await configureVideoEncoder(encoder, codecStr, w, h, fps, console.log);
+        const actualCodec = await configureVideoEncoder(encoder, codecStr, w, h, fps);
 
         const t0 = performance.now(); let lastUp = performance.now();
-        console.log('[Export] 开始导出:', parsedData.length + '条歌词', w + 'x' + h + '@' + fps, 'hasVideo=' + hasVideo, 'provider=' + (frameProvider ? 'mp4box' : exportVideoEl ? 'video' : 'none'));
+        const codecLabel = actualCodec || codecStr;
+        console.log('[Export] ' + w + 'x' + h + ' @' + fps + 'fps  ' + codecLabel + '  ' + totalFrames + 'frames  ' + (hasVideo ? 'video+' : ''));
 
         // === 渲染循环 ===
         for (let i = 0; i < totalFrames; i++) {
@@ -292,6 +399,7 @@ async function doExportCanvas({
 
         const webmBlob = muxWebM(encChunks, { width: w, height: h, codec: codecToMuxLabel(actualCodec), durationMs: totalTime * 1000 });
         download(webmBlob, `krkr-export-${w}x${h}-${Date.now()}.webm`);
+        console.log('[Export] ' + '导出完毕！');
 
     } catch (e) {
         console.error(e);

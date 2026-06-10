@@ -36,7 +36,6 @@ function parseRubyInline(text) {
 function parseLyrics(lrcRaw, entryBuf, config) {
     if (!lrcRaw.trim()) { return []; }
     const lines = lrcRaw.split('\n').map(l => l.trim()).filter(l => l);
-    console.log('[Parse] 开始解析:', lines.length, '行, entryBuf=' + entryBuf.toFixed(2), 'lrcRaw前50字=' + lrcRaw.substring(0,50));
     const timeRegex = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
     const rubyTimeRegex = /\[(\d+):(\d+)[:\.](\d+)\]/g;
 
@@ -249,6 +248,6 @@ function parseLyrics(lrcRaw, entryBuf, config) {
         lyrics[i].isFirstInParagraph = lyrics[i].lineInParagraph <= 1;
     }
 
-    console.log('[Parse] 解析完成:', lyrics.length, '条歌词');
+    // 标记段首/尾行完毕，返回结果
     return lyrics;
 }

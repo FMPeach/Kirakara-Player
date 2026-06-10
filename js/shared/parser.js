@@ -9,7 +9,6 @@ function parseLyrics(lrcRaw, entryBuf, config) {
     var EXIT_BUF = window.EXIT_BUF || 2.0;
 
     if (!lrcRaw.trim()) {
-        console.log('[Parse] lrcRaw 为空，跳过解析');
         return [];
     }
 
