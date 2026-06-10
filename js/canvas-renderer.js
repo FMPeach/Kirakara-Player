@@ -142,23 +142,26 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     }
                     const rTotalW = flatChars.reduce((s, fc) => s + fc.width, 0) + (flatChars.length - 1) * rls;
                     const rStartX = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rTotalW / 2;
-                    const ry = y - fs * 1.04 - config.rubyOffset;
+                    const ry = y - fs * 1.045 - config.rubyOffset;
 
                     let rxCursor = rStartX;
                     let flatIdx = 0;
                     for (let ri = 0; ri < rChars.length; ri++) {
                         const rc = rChars[ri];
-                        const chStart = gStart + (rc.offsetSec || (gEnd - gStart) * ri / rChars.length);
-                        const chEnd = (ri + 1 < rChars.length)
+                        const rcStart = gStart + (rc.offsetSec || (gEnd - gStart) * ri / rChars.length);
+                        const rcEnd = (ri + 1 < rChars.length)
                             ? gStart + (rChars[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / rChars.length)
                             : gEnd;
-                        const chInfo = calcProgress(rc.char, time, chStart, chEnd, true, config);
+                        const rcSpan = rcEnd - rcStart;
                         const subChars = [...rc.char];
 
                         for (let si = 0; si < subChars.length; si++) {
                             const ch = subChars[si];
                             const cw = flatChars[flatIdx].width;
                             flatIdx++;
+                            const chStart = rcStart + rcSpan * si / subChars.length;
+                            const chEnd = rcStart + rcSpan * (si + 1) / subChars.length;
+                            const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
 
                             drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorBefore, rlw);
                             dcx.fillStyle = config.colorBefore; dcx.fillText(ch, rxCursor, ry);
@@ -180,19 +183,22 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const rCharWidths = rCharsArr.map(ch => measureTotalWidth(ch, rfs, ff, 0, rfwStr2));
                     const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rCharsArr.length - 1) * rls;
                     const rx = (g.chars[0]._x + g.chars[g.chars.length - 1]._x + g.chars[g.chars.length - 1]._mw) / 2 - rTotalW / 2;
-                    const ry = y - fs * 1.04 - config.rubyOffset;
-                    const rpInfo = calcProgress(g.ruby, time, gStart, gEnd, true, config);
+                    const ry = y - fs * 1.045 - config.rubyOffset;
+                    const rSpan = gEnd - gStart;
 
                     let rxCursor = rx;
                     for (let ri = 0; ri < rCharsArr.length; ri++) {
                         const ch = rCharsArr[ri];
                         const cw = rCharWidths[ri];
+                        const chStart = gStart + rSpan * ri / rCharsArr.length;
+                        const chEnd = gStart + rSpan * (ri + 1) / rCharsArr.length;
+                        const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
 
                         drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorBefore, rlw);
                         dcx.fillStyle = config.colorBefore; dcx.fillText(ch, rxCursor, ry);
 
                         dcx.save(); dcx.beginPath();
-                        dcx.rect(rxCursor - rpInfo.pad, ry - rfs * 2.5, (rpInfo.pct / 100) * rpInfo.total, rfs * 4);
+                        dcx.rect(rxCursor - chInfo.pad, ry - rfs * 2.5, (chInfo.pct / 100) * chInfo.total, rfs * 4);
                         dcx.clip();
                         drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorAfter, rlw);
                         dcx.fillStyle = config.colorAfter; dcx.fillText(ch, rxCursor, ry);
