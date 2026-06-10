@@ -51,7 +51,6 @@ async function doExportCanvas({
                     file.onReady = (info) => {
                         trackInfo = info.videoTracks[0];
                         if (!trackInfo) { reject(new Error('无视频轨道')); return; }
-                        // 显示尺寸：优先用 track_width/height（已含像素宽高比变换），回退 coded 尺寸
                         videoW = trackInfo.track_width || trackInfo.video.width;
                         videoH = trackInfo.track_height || trackInfo.video.height;
                         file.setExtractionOptions(trackInfo.id);
@@ -59,6 +58,7 @@ async function doExportCanvas({
                             for (const sample of s) {
                                 samples.push({
                                     timeSec: sample.cts / sample.timescale,
+                                    dtsSec: (sample.dts !== undefined ? sample.dts : sample.cts) / sample.timescale,
                                     isKey: sample.is_sync,
                                     data: new Uint8Array(sample.data),
                                     durationSec: sample.duration / sample.timescale,
@@ -67,7 +67,7 @@ async function doExportCanvas({
                         };
                         file.start();
                     };
-                    file.onError = reject;
+                    file.onError = (e) => { reject(e); };
                     buf.fileStart = 0;
                     file.appendBuffer(buf);
                     file.flush();
@@ -76,7 +76,6 @@ async function doExportCanvas({
                         else reject(new Error('mp4box 未提取到任何样本'));
                     }, 1000);
                 });
-
                 // mp4box parsed
 
                 // === avcC 提取（从 mp4box internalTrack.stsd） ===
@@ -129,7 +128,9 @@ async function doExportCanvas({
                             }
                         }
                     }
-                } catch (e) { console.warn('[Export] avcC 提取失败:', e.message); }
+                } catch (e) {
+                    console.warn('[Export] avcC 提取失败:', e.message);
+                }
 
                 const rawCodec = trackInfo.codec || '';
                 const isAVC1 = rawCodec.startsWith('avc1');
@@ -143,7 +144,10 @@ async function doExportCanvas({
                 // === 异步背压通知器===
                 const _frameWaiters = [];   // getFrameAt 等待者: { resolve }
                 const _drainWaiters = [];   // feedLoop 背压等待者: resolve 函数
-                const _notifyFrameWaiters = () => { const ws = _frameWaiters.splice(0); for (const w of ws) w.resolve(); };
+                const _notifyFrameWaiters = () => {
+                    const ws = _frameWaiters.splice(0);
+                    for (const w of ws) w.resolve();
+                };
                 const _notifyDrainWaiters = () => { const ws = _drainWaiters.splice(0); for (const w of ws) w(); };
                 const _notifyAllWaiters = () => { _notifyFrameWaiters(); _notifyDrainWaiters(); };
 
@@ -157,9 +161,12 @@ async function doExportCanvas({
                         if (_frameWaiters.length > 0) _notifyFrameWaiters();
                         if (_drainWaiters.length > 0) _notifyDrainWaiters();
                     },
-                    error: e => console.error('[Export] VideoDecoder error:', e),
+                    error: e => {
+                        console.error('[Export] VideoDecoder error:', e);
+                    },
                 });
-                const decoderConfig = { codec: rawCodec || 'avc1.42001f', codedWidth: trackInfo.video.width, codedHeight: trackInfo.video.height };
+
+                const decoderConfig = { codec: rawCodec || 'avc1.42001f', codedWidth: trackInfo.video.width, codedHeight: trackInfo.video.height, hardwareAcceleration: 'prefer-software' };
                 if (codecDesc) decoderConfig.description = codecDesc;
                 decoder.configure(decoderConfig);
 
@@ -176,7 +183,6 @@ async function doExportCanvas({
                         const BATCH_MAX = 40;
                         const BATCH_MIN = 3;
                         while (decodeIdx < samples.length) {
-                            // 双重背压
                             while (frameQueue.length >= FRAME_QUEUE_MAX || decoder.decodeQueueSize >= MAX_DQS) {
                                 if (decoder.decodeQueueSize >= MAX_DQS) {
                                     await _yieldToEventLoop();
@@ -255,7 +261,6 @@ async function doExportCanvas({
                         const lastDrift = targetSec - frameQueue[lastIdx].timeSec;
 
                         if (lastDrift <= MAX_DRIFT || decodeDone) {
-                            // 漂移可接受（≤1帧）或解码已完成
                             for (let dj = 0; dj < lastIdx; dj++) try { frameQueue[dj].frame.close(); } catch (_) {}
                             const lastItem = frameQueue[lastIdx];
                             frameQueue.splice(0, lastIdx);
@@ -316,12 +321,23 @@ async function doExportCanvas({
                     }
                 };
 
-                while (frameQueue.length < 30 && !decodeDone) await new Promise(r => setTimeout(r, 50));
+                const warmupStart = performance.now();
+                const WARMUP_TIMEOUT_MS = 30000;
+                while (frameQueue.length < 30 && !decodeDone) {
+                    if (performance.now() - warmupStart > WARMUP_TIMEOUT_MS) {
+                        console.warn('[Export] decoder warmup 超时 ' + (WARMUP_TIMEOUT_MS / 1000) + 's，回退 <video> 方案');
+                        decoder.close();
+                        throw new Error('decoder warmup timeout, fallback to video seek');
+                    }
+                    await new Promise(r => setTimeout(r, 50));
+                }
 
                 frameProvider = { getFrame: getFrameAt, close: () => { decoder.close(); for (const e of frameQueue) e.frame.close(); } };
             } catch (e) {
                 console.warn('[Export] mp4box 路径失败，回退 <video>:', e.message);
             }
+        } else {
+            // mp4box 或 VideoDecoder 不可用，跳过
         }
 
         // === <video> 兜底 ===
@@ -336,7 +352,9 @@ async function doExportCanvas({
             });
             if (exportVideoEl.readyState < 2) { hasVideo = false; exportVideoEl = null; }
         }
-        if (!frameProvider && !exportVideoEl) hasVideo = false;
+        if (!frameProvider && !exportVideoEl) {
+            hasVideo = false;
+        }
 
         // === 编码器 ===
         const codecStr = expCodec === 'vp8' ? 'vp8' : expCodec === 'h264' ? 'avc1.42001f' : getVP9CodecString(w, h, fps);
