@@ -116,6 +116,7 @@
             }, [exporting, expW, expH, expFps, expCodec, duration, videoUrl, bgImageEnabled, bgImageUrl, parsedData, config, entryBuf]);
 
             const audioRef = useRef(null), videoRef = useRef(null), requestRef = useRef(null);
+            const oldUrlsRef = useRef({ audio: null, video: null }); // 记录旧 URL 以便清理
             const timeRef = useRef(time); timeRef.current = time;
             const animate = useCallback(() => {
                 const a = audioRef.current;
@@ -149,8 +150,29 @@
                                     </label>
                                     <div className="flex gap-2">
                                         <input type="file" accept="audio/*,video/*" className="flex-1 bg-zinc-800 p-1.5 rounded border border-zinc-700 text-[10px] file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-zinc-700 file:text-zinc-300"
-                                            onChange={(e) => { const f=e.target.files[0]; if(!f)return; const url=URL.createObjectURL(f); if(f.type.startsWith('video/')){setVideoUrl(url);setAudioUrl(url);setBgImageEnabled(false);}else{setVideoUrl(null);setAudioUrl(url);} }} />
-                                        <button className="text-[10px] text-red-400 hover:text-red-300 px-1" onClick={()=>{setAudioUrl(null);setVideoUrl(null);}}>✕</button>
+                                            onChange={(e) => { const f=e.target.files[0]; if(!f)return;
+                                                // 切换前：先彻底停止旧媒体，避免残留状态导致播放器宕机
+                                                const a = audioRef.current, v = videoRef.current;
+                                                if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
+                                                if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+                                                setIsPlaying(false); setTime(0);
+                                                // 清理旧 blob URL 防止内存泄漏
+                                                if (oldUrlsRef.current.audio && oldUrlsRef.current.audio.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.audio);
+                                                if (oldUrlsRef.current.video && oldUrlsRef.current.video.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.video);
+                                                const url=URL.createObjectURL(f);
+                                                if(f.type.startsWith('video/')){setVideoUrl(url);setAudioUrl(url);setBgImageEnabled(false);oldUrlsRef.current={audio:url,video:url};}
+                                                else{setVideoUrl(null);setAudioUrl(url);oldUrlsRef.current={audio:url,video:null};}
+                                            }} />
+                                        <button className="text-[10px] text-red-400 hover:text-red-300 px-1" onClick={()=>{
+                                            const a=audioRef.current,v=videoRef.current;
+                                            if(a){a.pause();a.removeAttribute('src');a.load();}
+                                            if(v){v.pause();v.removeAttribute('src');v.load();}
+                                            setIsPlaying(false); setTime(0);
+                                            if(oldUrlsRef.current.audio&&oldUrlsRef.current.audio.startsWith('blob:'))URL.revokeObjectURL(oldUrlsRef.current.audio);
+                                            if(oldUrlsRef.current.video&&oldUrlsRef.current.video.startsWith('blob:'))URL.revokeObjectURL(oldUrlsRef.current.video);
+                                            oldUrlsRef.current={audio:null,video:null};
+                                            setAudioUrl(null);setVideoUrl(null);
+                                        }}>✕</button>
                                     </div>
                                     <textarea className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="@Ruby + 行内注音 混合格式..." />
                                     <div className="flex items-center gap-2">
@@ -285,12 +307,12 @@
                             <div style={{ width:1280, height:720, backgroundColor:'#000', outline:'2px solid #27272a', transform:`scale(${canvasScale})`, transformOrigin:'center center', position:'relative', overflow:'hidden', flexShrink:0 }}>
                                 {bgImageEnabled && bgImageUrl && !videoUrl && (<><img src={bgImageUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',filter:'blur(20px) brightness(0.4)'}}/><img src={bgImageUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',opacity:config.bgImageOpacity??1}}/></>)}
                                 {!videoUrl && !bgImageEnabled && <div style={{position:'absolute',inset:0,backgroundColor:config.bgColor}}/>}
-                                {videoUrl && <video ref={videoRef} src={videoUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain'}} muted playsInline/>}
+                                {videoUrl && <video key={videoUrl} ref={videoRef} src={videoUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain'}} muted playsInline/>}
                                 {activeLines.l1 && <div className="absolute flex items-end" style={{left:config.line1X,top:config.line1Y}}><LyricLine line={activeLines.l1} config={config} currentTime={time}/></div>}
                                 {activeLines.l2 && <div className="absolute flex items-end" style={{right:config.line2Right,bottom:config.line2Bottom}}><LyricLine line={activeLines.l2} config={config} currentTime={time}/></div>}
                             </div>
                             <div className="mt-4 w-full max-w-3xl bg-zinc-900/80 backdrop-blur p-5 rounded-3xl border border-zinc-800 flex items-center gap-6 shadow-xl">
-                                <button onClick={()=>{if(isPlaying){audioRef.current?.pause();videoRef.current?.pause();}else{audioRef.current?.play();videoRef.current?.play().catch(()=>{});}}} className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500 transition-all active:scale-95">
+                                <button onClick={()=>{if(isPlaying){audioRef.current?.pause();videoRef.current?.pause();}else{audioRef.current?.play()?.catch(()=>{});videoRef.current?.play()?.catch(()=>{});}}} className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500 transition-all active:scale-95">
                                     {isPlaying?<Icons.Pause className="w-6 h-6 fill-white text-white"/>:<Icons.Play className="w-6 h-6 ml-1 fill-white text-white"/>}
                                 </button>
                                 <div className="flex-1 space-y-2">
@@ -323,7 +345,8 @@
                             </div>
                         </div>}
                     </div>
-                    <audio ref={audioRef} src={audioUrl} onDurationChange={e=>setDuration(e.target.duration)} onPlay={()=>setIsPlaying(true)} onPause={()=>setIsPlaying(false)}/>
+                    {/* key 强制 React 在 URL 变化时销毁旧元素、创建新元素，彻底避免媒体元素内部状态残留 */}
+                    <audio key={audioUrl || 'no-audio'} ref={audioRef} src={audioUrl || undefined} onDurationChange={e=>setDuration(e.target.duration)} onPlay={()=>setIsPlaying(true)} onPause={()=>setIsPlaying(false)} onEnded={()=>setIsPlaying(false)}/>
                 </div>
             );
         };
