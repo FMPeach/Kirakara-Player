@@ -10,6 +10,7 @@ function measureGlyphInk(text, fontStr) {
         const c = document.createElement('canvas');
         const ctx = c.getContext('2d');
         ctx.font = fontStr;
+        if (ctx.fontKerning !== undefined) ctx.fontKerning = 'none';
         const m = ctx.measureText(text);
         const left = m.actualBoundingBoxLeft || 0;
         const right = m.actualBoundingBoxRight || m.width;
@@ -32,6 +33,9 @@ function measureTotalWidth(text, fontSize, fontFamily, letterSpacing, fontWeight
         span.style.fontFamily = fontFamily;
         span.style.letterSpacing = `${letterSpacing}px`;
         span.style.fontWeight = fontWeight || 'normal';
+        span.style.fontKerning = 'none';
+        span.style.fontVariantLigatures = 'none';
+        span.style.fontOpticalSizing = 'none';
         span.style.whiteSpace = 'nowrap';
         document.body.appendChild(span);
         const w = span.scrollWidth;

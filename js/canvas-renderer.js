@@ -89,6 +89,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         const font = `${fw}${fs}px ${ff}`;
         const sw = config.strokeWidth || Math.round(fs * 0.12);
         dcx.font = font;
+        if (dcx.fontKerning !== undefined) dcx.fontKerning = 'none';
 
         const groups = [];
         for (let i = 0; i < line.chars.length;) {
@@ -123,6 +124,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                 const rlw = config.rubyStrokeWidth || Math.max(1, Math.round(rfs * 0.1));
                 const rfw = config.rubyBold ? 'bold ' : '';
                 dcx.font = `${rfw}${rfs}px ${ff}`;
+                if (dcx.fontKerning !== undefined) dcx.fontKerning = 'none';
 
                 const gStart = g.chars[0].startTime;
                 const gEnd = g.chars[g.chars.length - 1].endTime;
@@ -167,7 +169,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             dcx.fillStyle = config.colorBefore; dcx.fillText(ch, rxCursor, ry);
 
                             dcx.save(); dcx.beginPath();
-                            dcx.rect(rxCursor - chInfo.pad, ry - rfs * 2.5, (chInfo.pct / 100) * chInfo.total, rfs * 4);
+                            dcx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
                             dcx.clip();
                             drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorAfter, rlw);
                             dcx.fillStyle = config.colorAfter; dcx.fillText(ch, rxCursor, ry);
@@ -198,7 +200,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         dcx.fillStyle = config.colorBefore; dcx.fillText(ch, rxCursor, ry);
 
                         dcx.save(); dcx.beginPath();
-                        dcx.rect(rxCursor - chInfo.pad, ry - rfs * 2.5, (chInfo.pct / 100) * chInfo.total, rfs * 4);
+                        dcx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
                         dcx.clip();
                         drawShadowStrokeText(dcx, ch, rxCursor, ry, config.strokeColorAfter, rlw);
                         dcx.fillStyle = config.colorAfter; dcx.fillText(ch, rxCursor, ry);
@@ -210,6 +212,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             }
 
             dcx.font = font;
+            if (dcx.fontKerning !== undefined) dcx.fontKerning = 'none';
             for (let ci = 0; ci < g.chars.length; ci++) {
                     const c = g.chars[ci];
                     let pInfo;
@@ -224,7 +227,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     dcx.fillStyle = config.colorBefore; dcx.fillText(c.text, c._x, y);
 
                     dcx.save(); dcx.beginPath();
-                    dcx.rect(c._x - pInfo.pad, y - fs * 2.5, (pInfo.pct / 100) * pInfo.total, fs * 4);
+                    dcx.rect(c._x - fs, y - fs * 2.5, (fs - pInfo.pad) + (pInfo.pct / 100) * pInfo.total, fs * 4);
                     dcx.clip();
                     drawShadowStrokeText(dcx, c.text, c._x, y, config.strokeColorAfter, sw);
                     dcx.fillStyle = config.colorAfter; dcx.fillText(c.text, c._x, y);

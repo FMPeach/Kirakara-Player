@@ -6,7 +6,7 @@ const h = React.createElement;
 // ---- CharMask: 逐字 clip-path 遮罩 ----
 function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
                       colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth }) {
-    const pct = Math.max(0, Math.min(100, progress));
+    const pct = progress;
     const sw = strokeWidth || Math.max(1, Math.round(fontSize * 0.12));
     const safePad = sw;
     const shadowB = genStroke(strokeBefore, sw);
@@ -17,12 +17,14 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         lineHeight: '1.2', whiteSpace: 'pre',
         padding: `${safePad}px`,
         display: 'inline-block',
+        fontKerning: 'none',
+        fontVariantLigatures: 'none',
+        fontOpticalSizing: 'none',
     };
+    const rightClip = 100 - pct;
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { position: 'absolute', top: '-50%', left: 0, width: `${pct}%`, height: '200%', overflow: 'hidden' } },
-            h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, width: 'max-content', minWidth: '100%', position: 'absolute', top: '25%', left: 0 } }, text)
-        )
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)
     );
 }
 
@@ -30,7 +32,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
                       colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth }) {
     if (!text) return null;
-    const pct = Math.max(0, Math.min(100, progress));
+    const pct = progress;
     const sw = strokeWidth || Math.max(0.5, fontSize * 0.1);
     const safePad = Math.max(1, sw);
     const shadowB = genStroke(strokeBefore, sw);
@@ -41,12 +43,14 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         lineHeight: '1.1', whiteSpace: 'pre',
         padding: `${safePad}px`, display: 'inline-block',
         backfaceVisibility: 'hidden',  // 强制灰度抗锯齿，消除小字号 ClearType 彩边
+        fontKerning: 'none',
+        fontVariantLigatures: 'none',
+        fontOpticalSizing: 'none',
     };
+    const rightClip = 100 - pct;
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: -(safePad + (letterSpacing || 0)) } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { position: 'absolute', top: '-50%', left: 0, width: `${pct}%`, height: '200%', overflow: 'hidden' } },
-            h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, width: 'max-content', minWidth: '100%', position: 'absolute', top: '25%', left: 0 } }, text)
-        )
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)
     );
 }
 
@@ -111,8 +115,8 @@ function LyricLine({ line, config, currentTime }) {
         const gLeft = ink.left || 0, gRight = ink.right || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
-        const strokeL = Math.max(0, offsetL - pad - 1), strokeR = offsetR + pad + 1;
-        const startFrac = (strokeL / total) * 100, endFrac = Math.min(100, (strokeR / total) * 100);
+        const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
+        const startFrac = (strokeL / total) * 100, endFrac = (strokeR / total) * 100;
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 
@@ -133,8 +137,8 @@ function LyricLine({ line, config, currentTime }) {
         const gL = ink.left || 0, gR = ink.right || emW;
         const pL = -gL, pR = gR;
         const oL = pad + pL, oR = pad + pR;
-        const sL = Math.max(0, oL - pad - 1), sR = oR + pad + 1;
-        const sF = (sL / total) * 100, eF = Math.min(100, (sR / total) * 100);
+        const sL = oL - pad - 1, sR = oR + pad + 1;
+        const sF = (sL / total) * 100, eF = (sR / total) * 100;
         return sF + (rawPct / 100) * (eF - sF);
     };
 
@@ -154,8 +158,8 @@ function LyricLine({ line, config, currentTime }) {
         const gLeft = ink.left || 0, gRight = ink.right || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
-        const strokeL = Math.max(0, offsetL - pad - 1), strokeR = offsetR + pad + 1;
-        const startFrac = (strokeL / total) * 100, endFrac = Math.min(100, (strokeR / total) * 100);
+        const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
+        const startFrac = (strokeL / total) * 100, endFrac = (strokeR / total) * 100;
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 
@@ -194,8 +198,8 @@ function LyricLine({ line, config, currentTime }) {
         const gLeft = ink.left || 0, gRight = ink.right || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
-        const strokeL = Math.max(0, offsetL - pad - 1), strokeR = offsetR + pad + 1;
-        const startFrac = (strokeL / total) * 100, endFrac = Math.min(100, (strokeR / total) * 100);
+        const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
+        const startFrac = (strokeL / total) * 100, endFrac = (strokeR / total) * 100;
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 

@@ -16,8 +16,9 @@ function calcProgress(text, time, startTime, endTime, isRuby, config, rawPctOver
     const emW = Math.max(ink.emWidth || fs, domW);
     const total = emW + 2 * pad;
     const offsetL = pad - (ink.left || 0), offsetR = pad + (ink.right || emW);
-    const strokeL = Math.max(0, offsetL - pad - 1), strokeR = offsetR + pad + 1;
-    const startFrac = (strokeL / total) * 100, endFrac = Math.min(100, (strokeR / total) * 100);
+    const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
+    const startFrac = (strokeL / total) * 100;
+    const endFrac = (strokeR / total) * 100;
     return { pct: startFrac + (rawPct / 100) * (endFrac - startFrac), total, pad, emW };
 }
 
