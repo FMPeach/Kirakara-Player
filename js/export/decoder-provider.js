@@ -122,10 +122,8 @@ KiraExport.WebCodecsDecoder = function (opts) {
             output: (vf) => {
                 outputCount++;
                 if (outputCount === 1) {
-                    console.log('[Decoder] first frame ready  ts=' + (vf.timestamp / 1_000_000).toFixed(4) + 's');
                     if (_firstFrameResolve) { _firstFrameResolve(); _firstFrameResolve = null; }
                 }
-                if (outputCount <= 5) console.log('[Decoder] decoder.output #' + outputCount, 'ts=' + (vf.timestamp / 1_000_000).toFixed(4) + 's', 'w=' + vf.displayWidth + ' h=' + vf.displayHeight);
                 if (frameQueue.length >= FRAME_QUEUE_MAX * 2) {
                     try { vf.close(); } catch (_) { }
                     return;
@@ -247,7 +245,6 @@ KiraExport.WebCodecsDecoder = function (opts) {
 
         // === Warmup: 等待首帧 ===
         const WARMUP_TIMEOUT_MS = 5000;
-        console.log('[Decoder] 等待首帧（最长 ' + (WARMUP_TIMEOUT_MS / 1000) + 's）...');
         let warmupOk = false;
         try {
             await Promise.race([
@@ -258,7 +255,6 @@ KiraExport.WebCodecsDecoder = function (opts) {
         } catch (_) {
             console.warn('[Decoder] warmup 超时，outputCount=' + outputCount + ' decodeCount=' + decodeIdx);
         }
-        console.log('[Decoder] warmup 结束，outputCount=' + outputCount + ' decodeCount=' + decodeIdx + ' 帧队列=' + frameQueue.length + ' decoder.state=' + (decoder ? decoder.state : 'N/A') + ' decodeQueueSize=' + (decoder ? decoder.decodeQueueSize : 'N/A'));
 
         if (!warmupOk && frameQueue.length === 0) {
             console.warn('[Decoder] warmup 超时且无帧，init 失败');

@@ -50,16 +50,10 @@ KiraExport.Encoder = function (opts) {
                 chunk.copyTo(buf);
                 encChunks.push({ data: buf, timestamp: chunk.timestamp, isKey: chunk.type === 'key' });
 
-                // 诊断 NAL 类型
-                if (chunk.type === 'key' && encChunks.length <= 3) {
-                    console.log('[ENC KEY]', { bytes: buf.length, nal: dumpNAL(buf) });
-                }
-
                 // 从 metadata 提取 avcC
                 if (!_description && metadata && metadata.decoderConfig && metadata.decoderConfig.description) {
                     const desc = metadata.decoderConfig.description;
                     _description = desc instanceof Uint8Array ? desc : new Uint8Array(desc);
-                    console.log('[ENC DESC] decoderConfig.description: ' + _description.byteLength + 'B');
                 }
             },
             error: e => { encError = e; console.error('[Encoder]', e); },
@@ -68,7 +62,6 @@ KiraExport.Encoder = function (opts) {
         actualCodec = await configureVideoEncoder(encoder, codecStr, w, h, fps, { format, bitrate });
         started = true;
 
-        console.log('[Encoder] ' + w + 'x' + h + ' @' + fps + 'fps  ' + (actualCodec || codecStr) + ' → ' + format);
         return actualCodec;
     };
 

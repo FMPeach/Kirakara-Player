@@ -46,7 +46,6 @@ async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, opts = 
         const checkCfg = { codec, width: w, height: h, bitrate: bitrate || 15_000_000, framerate: fps };
         const check = await VideoEncoder.isConfigSupported(checkCfg);
         if (!check.supported) {
-            console.log('[Codec] ' + codec + ' isConfigSupported=false，跳过');
             continue;
         }
 
@@ -60,7 +59,6 @@ async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, opts = 
                 const cfg = { codec, width: w, height: h, bitrate: bitrate || 15_000_000, framerate: fps, latencyMode: 'realtime' };
                 if (codec.startsWith('avc1')) cfg.hardwareAcceleration = hw;
                 encoder.configure(cfg);
-                console.log('[Codec] 编码器就绪: ' + codec + (cfg.hardwareAcceleration ? ' (' + cfg.hardwareAcceleration + ')' : '') + ' → ' + (format || 'webm'));
                 return codec;
             } catch (e) {
                 lastError = e;
@@ -100,12 +98,10 @@ async function configureAudioEncoder(encoder, sampleRate, channels, bitrate) {
         });
         if (fallback.supported) {
             encoder.configure({ codec, sampleRate: 44100, numberOfChannels: 1, bitrate: 128000 });
-            console.log('[Codec] AAC 编码器就绪 (fallback): mp4a.40.2 44100Hz mono 128k');
             return codec;
         }
         throw new Error('AAC 编码不支持: ' + codec);
     }
     encoder.configure({ codec, sampleRate: sampleRate || 48000, numberOfChannels: channels || 2, bitrate: bitrate || 192000 });
-    console.log('[Codec] AAC 编码器就绪: mp4a.40.2 ' + (sampleRate || 48000) + 'Hz ' + (channels || 2) + 'ch ' + (bitrate || 192000) + 'bps');
     return codec;
 }

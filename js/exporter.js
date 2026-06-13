@@ -65,7 +65,7 @@ async function doExportCanvas({
                     const sz = decoder.getVideoSize();
                     videoW = sz.width;
                     videoH = sz.height;
-                    console.log('[Export] <video> 就绪');
+                    console.warn('[Export] <video> 就绪');
                 } catch (e) {
                     console.warn('[Export] <video> 失败:', e.message);
                     hasVideo = false;
@@ -185,33 +185,6 @@ async function doExportCanvas({
                     audioData.close();
                 }
                 audioChunks = await audioEncoder.finish();
-                console.log('[Export] 音频编码完成: ' + audioChunks.length + ' 帧');
-
-                // ---- DIAG: 编码输出诊断 ----
-                if (audioChunks.length > 0) {
-                    var c0 = audioChunks[0];
-                    console.log('[AUDIO-ENC-DIAG] 编码器: ' + audioEncoder.getCodec() + ' sampleRate=' + sampleRate + ' ch=' + channels);
-                    console.log('[AUDIO-ENC-DIAG] chunk[0]: ts=' + c0.timestamp + 'us dur=' + c0.duration + ' size=' + c0.data.byteLength +
-                        ' hex=' + Array.from(new Uint8Array(c0.data).slice(0, 8)).map(function(b){return b.toString(16).padStart(2,'0')}).join(' '));
-                    var sz5 = audioChunks.slice(0, Math.min(5, audioChunks.length)).map(function(c){return c.data.byteLength});
-                    console.log('[AUDIO-ENC-DIAG] 前5帧大小: ' + JSON.stringify(sz5));
-                    var clast = audioChunks[audioChunks.length - 1];
-                    console.log('[AUDIO-ENC-DIAG] chunk[' + (audioChunks.length-1) + ']: ts=' + clast.timestamp + 'us dur=' + clast.duration + ' size=' + clast.data.byteLength +
-                        ' hex=' + Array.from(new Uint8Array(clast.data).slice(0, 8)).map(function(b){return b.toString(16).padStart(2,'0')}).join(' '));
-                    // 判断是否 ADTS
-                    var raw = new Uint8Array(c0.data);
-                    var isADTS = raw[0] === 0xFF && (raw[1] & 0xF0) === 0xF0 && raw.length > 7;
-                    console.log('[AUDIO-ENC-DIAG] 首帧疑似ADTS: ' + isADTS + ' (0xFFF=' + (raw[0]===0xFF && (raw[1]&0xF0)===0xF0) +
-                        ' 首字节=' + raw[0].toString(16) + ' 第2字节=' + raw[1].toString(16) + ')');
-                    if (isADTS) {
-                        // ADTS header: 7 bytes (or 9 with CRC)
-                        var adtsProfile = (raw[2] >> 6) & 0x03;
-                        var adtsFreq = (raw[2] >> 2) & 0x0F;
-                        var adtsCh = ((raw[2] & 0x01) << 2) | ((raw[3] >> 6) & 0x03);
-                        var adtsFrameLen = ((raw[3] & 0x03) << 11) | (raw[4] << 3) | ((raw[5] >> 5) & 0x07);
-                        console.log('[AUDIO-ENC-DIAG] ADTS: profile=' + adtsProfile + ' freqIdx=' + adtsFreq + ' ch=' + adtsCh + ' frameLen=' + adtsFrameLen + ' (实际=' + raw.length + ')');
-                    }
-                }
             } catch (e) {
                 console.warn('[Export] 音频编码失败，导出无音频视频:', e.message);
             }
