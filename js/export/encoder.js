@@ -1,6 +1,5 @@
 // ==================== 第4层：Encoder（编码） ====================
 // 职责：接收 canvas，输出编码块
-// 禁止 mux！
 // 依赖: ../codec.js (configureVideoEncoder, getVP9CodecString)
 
 var KiraExport = window.KiraExport || {};
@@ -10,17 +9,30 @@ KiraExport.Encoder = function (opts) {
     const w = opts.width || 1920;
     const h = opts.height || 1080;
     const fps = opts.fps || 60;
-    const expCodec = opts.codec || 'vp9';  // 'vp9' | 'vp8' | 'h264'
+    const expCodec = opts.codec || 'vp9';     // 'vp9' | 'vp8' | 'h264'
+    const format = opts.format || 'webm';      // 'webm' | 'mp4'
+    const bitrate = opts.bitrate || undefined; // undefined → 默认 15Mbps
 
     let encoder = null;
     let encChunks = [];
     let encError = null;
     let actualCodec = null;
     let started = false;
+    let _description = null;  // avcC from metadata.decoderConfig.description
 
-    /**
-     * 启动编码器
-     */
+    const dumpNAL = function(buf) {
+        let i = 0;
+        const arr = [];
+        while (i + 4 < buf.length) {
+            const len = (buf[i] << 24) | (buf[i + 1] << 16) | (buf[i + 2] << 8) | buf[i + 3];
+            if (len <= 0 || i + 4 + len > buf.length) break;
+            const type = buf[i + 4] & 0x1F;
+            arr.push(type);
+            i += 4 + len;
+        }
+        return arr;
+    };
+
     const start = async () => {
         if (typeof VideoEncoder === 'undefined') throw new Error("浏览器不支持 WebCodecs");
 
@@ -30,20 +42,33 @@ KiraExport.Encoder = function (opts) {
 
         encChunks = [];
         encError = null;
+        _description = null;
 
         encoder = new VideoEncoder({
-            output: chunk => {
+            output: (chunk, metadata) => {
                 const buf = new Uint8Array(chunk.byteLength);
                 chunk.copyTo(buf);
                 encChunks.push({ data: buf, timestamp: chunk.timestamp, isKey: chunk.type === 'key' });
+
+                // 诊断 NAL 类型
+                if (chunk.type === 'key' && encChunks.length <= 3) {
+                    console.log('[ENC KEY]', { bytes: buf.length, nal: dumpNAL(buf) });
+                }
+
+                // 从 metadata 提取 avcC
+                if (!_description && metadata && metadata.decoderConfig && metadata.decoderConfig.description) {
+                    const desc = metadata.decoderConfig.description;
+                    _description = desc instanceof Uint8Array ? desc : new Uint8Array(desc);
+                    console.log('[ENC DESC] decoderConfig.description: ' + _description.byteLength + 'B');
+                }
             },
             error: e => { encError = e; console.error('[Encoder]', e); },
         });
 
-        actualCodec = await configureVideoEncoder(encoder, codecStr, w, h, fps);
+        actualCodec = await configureVideoEncoder(encoder, codecStr, w, h, fps, { format, bitrate });
         started = true;
 
-        console.log('[Encoder] ' + w + 'x' + h + ' @' + fps + 'fps  ' + (actualCodec || codecStr));
+        console.log('[Encoder] ' + w + 'x' + h + ' @' + fps + 'fps  ' + (actualCodec || codecStr) + ' → ' + format);
         return actualCodec;
     };
 
@@ -95,5 +120,11 @@ KiraExport.Encoder = function (opts) {
      */
     const getCodec = () => actualCodec;
 
-    return { start, encode, flush, finish, getCodec };
+    /**
+     * 获取 codec description（avcC），从 metadata.decoderConfig.description 捕获
+     * 仅在编码完成后有效
+     */
+    const getDescription = () => _description;
+
+    return { start, encode, flush, finish, getCodec, getDescription };
 };

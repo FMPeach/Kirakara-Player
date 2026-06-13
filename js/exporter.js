@@ -3,9 +3,10 @@
 //        export/encoder.js, export/muxer.js, canvas-renderer.js, codec.js, muxer.js
 
 async function doExportCanvas({
-    w, h, fps, expCodec,
+    w, h, fps, expCodec, expFormat,
     duration, totalTime,
     videoUrl, bgImageEnabled, bgImageUrl,
+    audioUrl, expAudioBitrate, expAudioSampleRate, expAudioChannels,
     parsedData, config, entryBuf,
     setExpProgress, setExpEta, setExporting,
     cancelRef,
@@ -74,7 +75,7 @@ async function doExportCanvas({
         }
 
         // ========== 第4层：Encoder 初始化 ==========
-        encoder = KiraExport.Encoder({ width: w, height: h, fps, codec: expCodec });
+        encoder = KiraExport.Encoder({ width: w, height: h, fps, codec: expCodec, format: expFormat });
         const actualCodec = await encoder.start();
 
         const t0 = performance.now(); let lastUp = performance.now();
@@ -135,13 +136,103 @@ async function doExportCanvas({
         const encChunks = await encoder.finish();
         if (encChunks.length === 0) throw new Error("编码数据为空");
 
-        const muxer = KiraExport.createMuxer('webm');
-        const webmBlob = muxer.mux(encChunks, {
+        // 音频管线（仅 mp4 且有音频源时）
+        let audioChunks = [];
+        if (expFormat === 'mp4' && audioUrl) {
+            try {
+                setExpEta('编码音频...');
+                const sampleRate = expAudioSampleRate || 48000;
+                const channels = expAudioChannels || 2;
+
+                const audioEncoder = KiraExport.AudioEncoder({
+                    sampleRate, channels,
+                    bitrate: (expAudioBitrate || 192) * 1000,
+                });
+                await audioEncoder.start();
+
+                // 解码完整音频
+                const audioResp = await fetch(audioUrl);
+                const audioBuf = await audioResp.arrayBuffer();
+                const audioCtx = new OfflineAudioContext({ numberOfChannels: channels, length: sampleRate * totalTime, sampleRate });
+                const audioBuffer = await audioCtx.decodeAudioData(audioBuf.slice(0));
+
+                const totalFrames = audioBuffer.length;  // 每声道帧数
+                const AAC_FRAME_SIZE = 1024;
+
+                // 逐帧编码
+                for (let offset = 0; offset < totalFrames; offset += AAC_FRAME_SIZE) {
+                    if (cancelRef && cancelRef.current) break;
+                    const framesThisChunk = Math.min(AAC_FRAME_SIZE, totalFrames - offset);
+                    if (framesThisChunk <= 0) break;
+
+                    const t = offset / sampleRate;
+                    const planarBuf = new ArrayBuffer(framesThisChunk * channels * 4); // f32 = 4 bytes
+                    const view = new Float32Array(planarBuf);
+                    for (let ch = 0; ch < channels; ch++) {
+                        const chData = audioBuffer.getChannelData(ch);
+                        view.set(chData.slice(offset, offset + framesThisChunk), ch * framesThisChunk);
+                    }
+
+                    const audioData = new AudioData({
+                        format: 'f32-planar',
+                        sampleRate,
+                        numberOfChannels: channels,
+                        numberOfFrames: framesThisChunk,
+                        timestamp: Math.round(t * 1_000_000),
+                        data: planarBuf,
+                    });
+                    audioEncoder.encode(audioData);
+                    audioData.close();
+                }
+                audioChunks = await audioEncoder.finish();
+                console.log('[Export] 音频编码完成: ' + audioChunks.length + ' 帧');
+
+                // ---- DIAG: 编码输出诊断 ----
+                if (audioChunks.length > 0) {
+                    var c0 = audioChunks[0];
+                    console.log('[AUDIO-ENC-DIAG] 编码器: ' + audioEncoder.getCodec() + ' sampleRate=' + sampleRate + ' ch=' + channels);
+                    console.log('[AUDIO-ENC-DIAG] chunk[0]: ts=' + c0.timestamp + 'us dur=' + c0.duration + ' size=' + c0.data.byteLength +
+                        ' hex=' + Array.from(new Uint8Array(c0.data).slice(0, 8)).map(function(b){return b.toString(16).padStart(2,'0')}).join(' '));
+                    var sz5 = audioChunks.slice(0, Math.min(5, audioChunks.length)).map(function(c){return c.data.byteLength});
+                    console.log('[AUDIO-ENC-DIAG] 前5帧大小: ' + JSON.stringify(sz5));
+                    var clast = audioChunks[audioChunks.length - 1];
+                    console.log('[AUDIO-ENC-DIAG] chunk[' + (audioChunks.length-1) + ']: ts=' + clast.timestamp + 'us dur=' + clast.duration + ' size=' + clast.data.byteLength +
+                        ' hex=' + Array.from(new Uint8Array(clast.data).slice(0, 8)).map(function(b){return b.toString(16).padStart(2,'0')}).join(' '));
+                    // 判断是否 ADTS
+                    var raw = new Uint8Array(c0.data);
+                    var isADTS = raw[0] === 0xFF && (raw[1] & 0xF0) === 0xF0 && raw.length > 7;
+                    console.log('[AUDIO-ENC-DIAG] 首帧疑似ADTS: ' + isADTS + ' (0xFFF=' + (raw[0]===0xFF && (raw[1]&0xF0)===0xF0) +
+                        ' 首字节=' + raw[0].toString(16) + ' 第2字节=' + raw[1].toString(16) + ')');
+                    if (isADTS) {
+                        // ADTS header: 7 bytes (or 9 with CRC)
+                        var adtsProfile = (raw[2] >> 6) & 0x03;
+                        var adtsFreq = (raw[2] >> 2) & 0x0F;
+                        var adtsCh = ((raw[2] & 0x01) << 2) | ((raw[3] >> 6) & 0x03);
+                        var adtsFrameLen = ((raw[3] & 0x03) << 11) | (raw[4] << 3) | ((raw[5] >> 5) & 0x07);
+                        console.log('[AUDIO-ENC-DIAG] ADTS: profile=' + adtsProfile + ' freqIdx=' + adtsFreq + ' ch=' + adtsCh + ' frameLen=' + adtsFrameLen + ' (实际=' + raw.length + ')');
+                    }
+                }
+            } catch (e) {
+                console.warn('[Export] 音频编码失败，导出无音频视频:', e.message);
+            }
+        }
+
+        const muxer = KiraExport.createMuxer(expFormat || 'webm');
+        const muxOpts = {
             width: w, height: h,
             codec: actualCodec,
             durationMs: totalTime * 1000,
-        });
-        download(webmBlob, `krkr-export-${w}x${h}-${Date.now()}.webm`);
+            fps,
+            avcDesc: encoder.getDescription(),  // metadata.decoderConfig.description
+        };
+        if (audioChunks.length > 0) {
+            muxOpts.audioChunks = audioChunks;
+            muxOpts.audioSampleRate = expAudioSampleRate || 48000;
+            muxOpts.audioChannels = expAudioChannels || 2;
+        }
+        const blob = muxer.mux(encChunks, muxOpts);
+        const ext = expFormat === 'mp4' ? 'mp4' : 'webm';
+        download(blob, `krkr-export-${w}x${h}-${Date.now()}.${ext}`);
         console.log('[Export] 导出完毕！');
 
     } catch (e) {

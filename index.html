@@ -36,6 +36,7 @@
     <script src="js/export/decoder-provider.js"></script>
     <script src="js/export/renderer.js"></script>
     <script src="js/export/encoder.js"></script>
+    <script src="js/export/audio-encoder.js"></script>
     <script src="js/exporter.js"></script>
 
     <!-- ===== Babel（JSX 转译） ===== -->
@@ -80,7 +81,10 @@
             const [expW, setExpW] = useState(1920);
             const [expH, setExpH] = useState(1080);
             const [expFps, setExpFps] = useState(60);
-            const [expCodec, setExpCodec] = useState('vp9');
+            const [expCodec, setExpCodec] = useState('h264');
+            const [expFormat, setExpFormat] = useState('mp4');
+            const [expAudioBitrate, setExpAudioBitrate] = useState(192);
+            const [expAudioSampleRate, setExpAudioSampleRate] = useState(48000);
             const [exporting, setExporting] = useState(false);
             const [expProgress, setExpProgress] = useState(0);
             const [expEta, setExpEta] = useState('');
@@ -115,10 +119,14 @@
                 setExporting(true); setShowExportModal(false);
                 setExpProgress(0); setExpEta('初始化...'); cancelRef.current = false;
                 console.log('[Export] 传递: parsedData.length=' + (parsedData?parsedData.length:0), 'config.indicatorEnabled=' + config.indicatorEnabled, 'entryBuf=' + entryBuf);
-                await doExportCanvas({ w:expW, h:expH, fps:expFps, expCodec, duration, totalTime:t, videoUrl, bgImageEnabled, bgImageUrl,
+                await doExportCanvas({ w:expW, h:expH, fps:expFps, expCodec, expFormat, duration, totalTime:t, videoUrl, bgImageEnabled, bgImageUrl,
+                    audioUrl, expAudioBitrate, expAudioSampleRate, expAudioChannels: 2,
+                    parsedData, config, entryBuf,
                     parsedData, config, entryBuf,
                     setExpProgress, setExpEta, setExporting, cancelRef });
-            }, [exporting, expW, expH, expFps, expCodec, duration, videoUrl, bgImageEnabled, bgImageUrl, parsedData, config, entryBuf]);
+            }, [exporting, expW, expH, expFps, expCodec, expFormat, duration, videoUrl, bgImageEnabled, bgImageUrl,
+                audioUrl, expAudioBitrate, expAudioSampleRate,
+                parsedData, config, entryBuf]);
 
             const audioRef = useRef(null), videoRef = useRef(null), requestRef = useRef(null);
             const oldUrlsRef = useRef({ audio: null, video: null }); // 记录旧 URL 以便清理
@@ -339,14 +347,25 @@
                         </button>}
                         {showExportModal && <div className="export-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setShowExportModal(false)}}>
                             <div className="export-modal"><h2>🎬 导出视频</h2>
-                                <div className="grid grid-cols-2 gap-3" style={{marginTop:12}}>
-                                    <div><label>分辨率宽度</label><input type="number" value={expW} onChange={e=>setExpW(parseInt(e.target.value)||1920)}/></div>
-                                    <div><label>分辨率高度</label><input type="number" value={expH} onChange={e=>setExpH(parseInt(e.target.value)||1080)}/></div>
-                                    <div><label>帧率 (FPS)</label><input type="number" value={expFps} onChange={e=>setExpFps(parseInt(e.target.value)||60)}/></div>
-                                    <div><label>编码格式</label><select value={expCodec} onChange={e=>setExpCodec(e.target.value)}><option value="vp9">VP9 (推荐)</option><option value="vp8">VP8</option><option value="h264">H.264</option></select></div>
+                                <div className="space-y-3" style={{marginTop:12}}>
+                                    <div className="text-s text-zinc-400 font-semibold">视频设置</div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4">MP4</option><option value="webm">WebM</option></select></div>
+                                        <div><label>视频编码</label><select value={expCodec} onChange={e=>setExpCodec(e.target.value)}>{expFormat==='mp4'?<><option value="h264">H.264</option></>:<><option value="vp9">VP9</option><option value="vp8">VP8</option></>}</select></div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label>分辨率</label><div className="flex items-center gap-1"><input type="number" value={expW} onChange={e=>setExpW(parseInt(e.target.value)||1920)} className="flex-1"/><span className="text-zinc-500">×</span><input type="number" value={expH} onChange={e=>setExpH(parseInt(e.target.value)||1080)} className="flex-1"/></div></div>
+                                        <div><label>帧率 (FPS)</label><input type="number" value={expFps} onChange={e=>setExpFps(parseInt(e.target.value)||60)}/></div>
+                                    </div>
+                                    {audioUrl && expFormat==='mp4' && <>
+                                    <div className="text-s text-zinc-400 font-semibold">音频设置</div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label>采样率</label><select value={expAudioSampleRate} onChange={e=>setExpAudioSampleRate(parseInt(e.target.value))}><option value={48000}>48000Hz</option><option value={44100}>44100Hz</option></select></div>
+                                        <div><label>比特率</label><select value={expAudioBitrate} onChange={e=>setExpAudioBitrate(parseInt(e.target.value))}><option value={192}>192k</option><option value={128}>128k</option><option value={256}>256k</option></select></div>
+                                    </div></>}
                                 </div>
                                 <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setShowExportModal(false)}>取消</button><button className="btn btn-primary" onClick={doExport}>开始导出</button></div>
-                                <div className="export-tips mt-3 text-xs text-zinc-400">注：导出的视频为webm格式，且不含音频流，请自行混流音轨。</div>
+                                <div className="export-tips mt-3 text-xs text-zinc-400">{expFormat==='mp4'?'':'WebM 不含音频流，请自行混流。'}</div>
                             </div>
                         </div>}
                     </div>
