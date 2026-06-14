@@ -268,9 +268,10 @@
                                                 <span className="absolute inset-0 flex items-center justify-center text-zinc-500 pointer-events-none text-[10px]">▼</span>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-3 gap-2">
                                         <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.fontBold} onChange={e=>setConfig({...config,fontBold:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">主字加粗</span></label>
                                         <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.rubyBold} onChange={e=>setConfig({...config,rubyBold:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">注音加粗</span></label>
+                                        <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer" title="注音宽度超出主字时两侧自动留白，防止注音重叠"><input type="checkbox" checked={config.rubyIsolateEnabled} onChange={e=>setConfig({...config,rubyIsolateEnabled:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">注音避让</span></label>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         {[['主字大小','fontSize',32,'int'],['注音大小','rubySize',12,'int'],['注音上推','rubyOffset',0,'int'],['主字间距','letterSpacing',0,'float'],['注音字距','rubyLetterSpacing',0,'float']].map(([l,k,fb,t])=>(

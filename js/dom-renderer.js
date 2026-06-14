@@ -176,6 +176,10 @@ function LyricLine({ line, config, currentTime }) {
         }
     }
 
+    // 注音避让布局计算 (Isolate + Avoidance)
+    const { metrics: rubyMetrics, extraGaps: rubyExtraGaps } = computeRubyLayout(groups, config);
+    const ls = config.letterSpacing;
+
     // 注音假名进度（有时序数据时逐假名独立走字）
     const getRubyCharProgress = (g, idx) => {
         const rChars = g.rubyChars;
@@ -423,10 +427,17 @@ function LyricLine({ line, config, currentTime }) {
                 roleColors: cRoleColors.length >= 2 ? cRoleColors : undefined,
             });
         });
-        groupChildren.push(h('div', { key: 'chars', className: 'flex items-end', style: { gap: `${config.letterSpacing}px` } }, ...charEls));
+        groupChildren.push(h('div', { key: 'chars', className: 'flex items-end', style: { gap: `${ls}px` } }, ...charEls));
 
-        children.push(h('div', { key: gi, className: 'flex flex-col items-center', style: { position: 'relative' } }, ...groupChildren));
+        const m = rubyMetrics[gi] || {};
+        const isLastGroup = gi === groups.length - 1;
+        const extraGap = isLastGroup ? 0 : (rubyExtraGaps[gi] || 0);
+        const groupWrapperStyle = { position: 'relative' };
+        if (m.isolatePad > 0) groupWrapperStyle.minWidth = `${m.effectiveW}px`;
+        if (extraGap > 0) groupWrapperStyle.marginRight = `${extraGap}px`;
+
+        children.push(h('div', { key: gi, className: 'flex flex-col items-center', style: groupWrapperStyle }, ...groupChildren));
     });
 
-    return h('div', { className: 'flex items-baseline', style: { gap: `${config.letterSpacing}px`, opacity: fadeOpacity, position: 'relative' } }, ...children);
+    return h('div', { className: 'flex items-baseline', style: { gap: `${ls}px`, opacity: fadeOpacity, position: 'relative' } }, ...children);
 }

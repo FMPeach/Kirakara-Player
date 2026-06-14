@@ -210,21 +210,37 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             layoutItems.push({ type: 'group', chars: layoutChars, ruby: g.ruby, rubyChars: g.rubyChars, w: groupW });
         }
 
-        const totalLineWidth = layoutItems.reduce((sum, item) => sum + item.w, 0) + (layoutItems.length - 1) * ls;
+        // 注音避让布局 (Isolate + Avoidance)
+        const { metrics: rubyMetrics, extraGaps: rubyExtraGaps } = computeRubyLayout(groups, config);
+        let groupIdx = 0;
+        for (const item of layoutItems) {
+            if (item.type === 'group') {
+                const m = rubyMetrics[groupIdx] || {};
+                item.w = m.effectiveW;
+                item.isolatePad = m.isolatePad || 0;
+                groupIdx++;
+            }
+        }
+
+        const totalLineWidth = layoutItems.reduce((sum, item) => sum + item.w, 0)
+            + (layoutItems.length - 1) * ls
+            + rubyExtraGaps.reduce((s, g) => s + g, 0);
         let cursorX = alignRight ? (1280 - config.line2Right - totalLineWidth) : x;
 
+        groupIdx = 0;
         for (const item of layoutItems) {
             item.x = cursorX;
             if (item.type === 'label') {
                 item.drawX = item.isImage ? cursorX + item.marginL : cursorX;
                 cursorX += item.w + ls;
             } else if (item.type === 'group') {
-                let cx = cursorX;
+                let cx = cursorX + (item.isolatePad || 0);
                 for (const c of item.chars) {
                     c.x = cx;
                     cx += c.w + ls; 
                 }
-                cursorX += item.w + ls;
+                cursorX += item.w + ls + (rubyExtraGaps[groupIdx] || 0);
+                groupIdx++;
             }
         }
 
