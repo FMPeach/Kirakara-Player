@@ -57,7 +57,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text)));
         }
         return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } }, ...children);
     }
@@ -65,7 +65,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text));
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text));
 }
 
 // ---- RubyMask: 注音逐字 clip-path（支持 N 角色垂直等分分层） ----
@@ -128,7 +128,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text)));
         }
         return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } }, ...children);
     }
@@ -136,7 +136,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text));
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text));
 }
 
 
@@ -221,7 +221,7 @@ function LyricLine({ line, config, currentTime }) {
         const fs = config.rubySize, fwRuby = config.rubyBold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(g.ruby, fontStr);
-        const domW = measureTotalWidth(g.ruby, fs, config.fontFamily, 0, fwRuby.trim() || 'normal');
+        const domW = measureTotalWidth(g.ruby, fs, config.fontFamily, (config.rubyLetterSpacing || 0), fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
         const gL = ink.left || 0, gR = ink.right || emW;
