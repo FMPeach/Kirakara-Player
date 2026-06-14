@@ -26,12 +26,14 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
     if (N >= 2) {
         const segPct = 100 / N;
+        const seamFadePx = 2;
         const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
             const topPct = i * segPct, bottomPct = 100 - (i + 1) * segPct;
-            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, clipPath: `inset(${topPct}% 0 ${bottomPct}% 0)` } },
+            const roleMask = `linear-gradient(to bottom, transparent 0%, transparent calc(${topPct}% - ${seamFadePx}px), black ${topPct}%, black calc(100% - ${bottomPct}%), transparent calc(100% - ${bottomPct}% + ${seamFadePx}px), transparent 100%)`;
+            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
                 h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
         }
@@ -76,12 +78,14 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
     if (N >= 2) {
         const segPct = 100 / N;
+        const seamFadePx = 2;
         const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
             const topPct = i * segPct, bottomPct = 100 - (i + 1) * segPct;
-            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, clipPath: `inset(${topPct}% 0 ${bottomPct}% 0)` } },
+            const roleMask = `linear-gradient(to bottom, transparent 0%, transparent calc(${topPct}% - ${seamFadePx}px), black ${topPct}%, black calc(100% - ${bottomPct}%), transparent calc(100% - ${bottomPct}% + ${seamFadePx}px), transparent 100%)`;
+            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
                 h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
         }
