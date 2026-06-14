@@ -3,41 +3,57 @@
 
 const h = React.createElement;
 
-// ---- CharMask: 逐字 clip-path 遮罩 ----
+// ---- CharMask: 逐字 clip-path 遮罩（支持 N 角色垂直等分分层） ----
 function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
-                      colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth }) {
+    colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
+    roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
+    roleColors }) {
     const pct = progress;
     const sw = strokeWidth || Math.max(1, Math.round(fontSize * 0.12));
     const safePad = sw;
-    const shadowB = genStroke(strokeBefore, sw);
-    const shadowA = genStroke(strokeAfter, sw);
-    const textBase = {
-        fontFamily, fontWeight,
-        fontSize: `${fontSize}px`,
-        lineHeight: '1.2', whiteSpace: 'pre',
-        padding: `${safePad}px`,
-        display: 'inline-block',
-        fontKerning: 'none',
-        fontVariantLigatures: 'none',
-        fontOpticalSizing: 'none',
-    };
     const rightClip = 100 - pct;
+
+    // 统一为 roleColors 数组（兼容旧 roleB_* props）
+    let allRC = roleColors;
+    if (!allRC || allRC.length === 0) {
+        const p = { colorBefore, colorAfter, strokeColorBefore: strokeBefore, strokeColorAfter: strokeAfter };
+        const s = (roleB_colorBefore || roleB_colorAfter) ? { colorBefore: roleB_colorBefore, colorAfter: roleB_colorAfter, strokeColorBefore: roleB_strokeBefore, strokeColorAfter: roleB_strokeAfter } : null;
+        allRC = s ? [p, s] : [p];
+    }
+    const N = allRC.length;
+
+    const textBase = { fontFamily, fontWeight, fontSize: `${fontSize}px`, lineHeight: '1.2', whiteSpace: 'pre', padding: `${safePad}px`, display: 'inline-block', fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none' };
+
+    if (N >= 2) {
+        const segPct = 100 / N;
+        const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
+        for (let i = 0; i < N; i++) {
+            const rc = allRC[i];
+            const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
+            const topPct = i * segPct, bottomPct = 100 - (i + 1) * segPct;
+            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, clipPath: `inset(${topPct}% 0 ${bottomPct}% 0)` } },
+                h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
+        }
+        return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } }, ...children);
+    }
+
+    const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)
-    );
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text));
 }
 
-// ---- RubyMask: 注音逐字 clip-path ----
+// ---- RubyMask: 注音逐字 clip-path（支持 N 角色垂直等分分层） ----
 function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
-                      colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth }) {
+    colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
+    roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
+    roleColors }) {
     if (!text) return null;
     const pct = progress;
     const sw = strokeWidth || Math.max(0.5, fontSize * 0.1);
     const safePad = Math.max(1, sw);
-    const shadowB = genStroke(strokeBefore, sw);
-    const shadowA = genStroke(strokeAfter, sw);
-    const textBase = {
+    const textBase = { 
         fontFamily, fontWeight: fontWeight || 'normal',
         fontSize: `${fontSize}px`, letterSpacing: `${letterSpacing}px`,
         lineHeight: '1.1', whiteSpace: 'pre',
@@ -48,10 +64,34 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         fontOpticalSizing: 'none',
     };
     const rightClip = 100 - pct;
-    return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: -(safePad + (letterSpacing || 0)) } },
+
+    let allRC = roleColors;
+    if (!allRC || allRC.length === 0) {
+        const p = { colorBefore, colorAfter, strokeColorBefore: strokeBefore, strokeColorAfter: strokeAfter };
+        const s = (roleB_colorBefore || roleB_colorAfter) ? { colorBefore: roleB_colorBefore, colorAfter: roleB_colorAfter, strokeColorBefore: roleB_strokeBefore, strokeColorAfter: roleB_strokeAfter } : null;
+        allRC = s ? [p, s] : [p];
+    }
+    const N = allRC.length;
+    const marginStyle = { marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: -(safePad + (letterSpacing || 0)) };
+
+    if (N >= 2) {
+        const segPct = 100 / N;
+        const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
+        for (let i = 0; i < N; i++) {
+            const rc = allRC[i];
+            const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
+            const topPct = i * segPct, bottomPct = 100 - (i + 1) * segPct;
+            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, clipPath: `inset(${topPct}% 0 ${bottomPct}% 0)` } },
+                h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
+        }
+        return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } }, ...children);
+    }
+
+    const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
+    return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)
-    );
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text));
 }
 
 // ---- LyricLine: 歌词行（连词组注音居中） ----
@@ -78,7 +118,7 @@ function LyricLine({ line, config, currentTime }) {
 
     // 分组（按 rubySpan）
     const groups = [];
-    for (let i = 0; i < chars.length; ) {
+    for (let i = 0; i < chars.length;) {
         const c = chars[i];
         const span = c.rubySpan || 0;
         if (span > 1 && c.ruby) {
@@ -236,18 +276,78 @@ function LyricLine({ line, config, currentTime }) {
     }
 
     // 歌词组
+    let lastRoleKey = null;
     groups.forEach((g, gi) => {
+        // 角色外显标签：显式角色且组合变化时，为每个角色显示标签（a+b → 两张图）
+        const gRoleKeys = g.chars[0]?.roles || [];
+        const gExplicit = g.chars[0]?.roleExplicit;
+        const gCombinedKey = gRoleKeys.join('+');
+        if (gExplicit && gCombinedKey && gCombinedKey !== lastRoleKey) {
+            lastRoleKey = gCombinedKey;
+            for (const rk of gRoleKeys) {
+                const gProfile = (config.characterProfiles || {})[rk] || {};
+                if (!gProfile.showLabel) { continue; }
+                const labelScale = (gProfile.labelScale || 100) / 100;
+                const labelFs = Math.round(config.fontSize * labelScale);
+                const offsetY = gProfile.imageOffsetY || 0;
+                if (gProfile.imageMode && gProfile.image) {
+                    const marginL = (gProfile.labelMarginLeft || 0);
+                    const marginR = (gProfile.labelMarginRight || 0) + config.letterSpacing + 2;
+                    children.push(h('img', {
+                        key: 'label-' + gi + '-' + rk, src: gProfile.image, style: {
+                            height: `${labelFs}px`, width: 'auto', objectFit: 'contain',
+                            marginLeft: `${marginL}px`, marginRight: `${marginR}px`,
+                            position: 'relative', top: `${offsetY}px`,
+                            alignSelf: 'flex-end', flexShrink: 0,
+                        }
+                    }));
+                } else {
+                    const labelText = gProfile.displayName || rk;
+                    const labelColor = gProfile.displayColor || gProfile.colorBefore || config.colorBefore;
+                    const labelStroke = gProfile.labelStrokeColor || config.strokeColorBefore;
+                    const labelSw = config.strokeWidth;
+                    // 每个字独立渲染，通过 flex gap 获得和歌词一致的字间距
+                    const labelChars = [...labelText];
+                    labelChars.forEach((ch, ci) => {
+                        children.push(h('span', {
+                            key: 'label-' + gi + '-' + rk + '-' + ci, style: {
+                                fontSize: `${labelFs}px`,
+                                fontFamily: config.fontFamily,
+                                fontWeight: config.fontBold ? 'bold' : 'normal',
+                                color: labelColor, textShadow: genStroke(labelStroke, labelSw),
+                                padding: `${labelSw}px`, margin: `-${labelSw}px`,
+                                display: 'inline-block', lineHeight: '1.2',
+                                whiteSpace: 'pre', flexShrink: 0,
+                                fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
+                            }
+                        }, ch));
+                    });
+                }
+            }
+        }
+
         const groupChildren = [];
 
         // 注音
         if (g.ruby) {
             const rubyEls = [];
+            const rRoles = g.chars[0]?.roles;
+            const rProfiles = config.characterProfiles || {};
+            const rRoleColors = (rRoles && rRoles.length > 0) ? rRoles.map(rn => {
+                const rp = rProfiles[rn] || {};
+                return { colorBefore: rp.colorBefore || config.colorBefore, colorAfter: rp.colorAfter || config.colorAfter, strokeColorBefore: rp.strokeColorBefore || config.strokeColorBefore, strokeColorAfter: rp.strokeColorAfter || config.strokeColorAfter };
+            }) : [{ colorBefore: config.colorBefore, colorAfter: config.colorAfter, strokeColorBefore: config.strokeColorBefore, strokeColorAfter: config.strokeColorAfter }];
+            const rcb = rRoleColors[0].colorBefore, rca = rRoleColors[0].colorAfter;
+            const rsb = rRoleColors[0].strokeColorBefore, rsa = rRoleColors[0].strokeColorAfter;
+            const rsw = config.rubyStrokeWidth;
+            // 双角色注音
+            const rIsDual = rRoleColors.length >= 2;
             if (g.rubyChars && g.rubyChars.length > 1) {
                 g.rubyChars.forEach((rc, ri) => {
-                    rubyEls.push(h(RubyMask, { key: ri, text: rc.char, progress: getRubyCharProgress(g, ri), fontSize: config.rubySize, letterSpacing: rc.char.length > 1 ? config.rubyLetterSpacing : 0, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: config.colorBefore, colorAfter: config.colorAfter, strokeBefore: config.strokeColorBefore, strokeAfter: config.strokeColorAfter, strokeWidth: config.rubyStrokeWidth }));
+                    rubyEls.push(h(RubyMask, { key: ri, text: rc.char, progress: getRubyCharProgress(g, ri), fontSize: config.rubySize, letterSpacing: rc.char.length > 1 ? config.rubyLetterSpacing : 0, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined }));
                 });
             } else {
-                rubyEls.push(h(RubyMask, { key: 'r', text: g.ruby, progress: getRubyProgress(g), fontSize: config.rubySize, letterSpacing: config.rubyLetterSpacing, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: config.colorBefore, colorAfter: config.colorAfter, strokeBefore: config.strokeColorBefore, strokeAfter: config.strokeColorAfter, strokeWidth: config.rubyStrokeWidth }));
+                rubyEls.push(h(RubyMask, { key: 'r', text: g.ruby, progress: getRubyProgress(g), fontSize: config.rubySize, letterSpacing: config.rubyLetterSpacing, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined }));
             }
             groupChildren.push(h('div', { key: 'ruby', className: 'flex justify-center', style: { position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', paddingBottom: `${config.rubyOffset}px`, whiteSpace: 'nowrap' } },
                 h('span', { style: { display: 'inline-flex', gap: `${config.rubyLetterSpacing}px` } }, ...rubyEls)
@@ -257,12 +357,30 @@ function LyricLine({ line, config, currentTime }) {
         // 主字
         const charEls = g.chars.map((c, ci) => {
             const progress = (g.rubyChars && g.rubyChars.length > 1) ? getGroupedCharProgress(c, g) : getProgress(c);
-            return h(CharMask, { key: ci, text: c.text, progress, fontSize: config.fontSize, letterSpacing: 0, fontFamily: config.fontFamily, fontWeight: config.fontBold ? 'bold' : 'normal', colorBefore: config.colorBefore, colorAfter: config.colorAfter, strokeBefore: config.strokeColorBefore, strokeAfter: config.strokeColorAfter, strokeWidth: config.strokeWidth });
+            const roles = c.roles;
+            const profiles = config.characterProfiles || {};
+            const cRoleColors = (roles && roles.length > 0) ? roles.map(rn => {
+                const rp = profiles[rn] || {};
+                return { colorBefore: rp.colorBefore || config.colorBefore, colorAfter: rp.colorAfter || config.colorAfter, strokeColorBefore: rp.strokeColorBefore || config.strokeColorBefore, strokeColorAfter: rp.strokeColorAfter || config.strokeColorAfter };
+            }) : [{ colorBefore: config.colorBefore, colorAfter: config.colorAfter, strokeColorBefore: config.strokeColorBefore, strokeColorAfter: config.strokeColorAfter }];
+            const p1 = cRoleColors[0];
+            const cb = p1.colorBefore, ca = p1.colorAfter;
+            const sb = p1.strokeColorBefore, sa = p1.strokeColorAfter;
+            const sw = config.strokeWidth;
+            return h(CharMask, {
+                key: ci, text: c.text, progress,
+                fontSize: config.fontSize, letterSpacing: 0,
+                fontFamily: config.fontFamily, fontWeight: config.fontBold ? 'bold' : 'normal',
+                colorBefore: cb, colorAfter: ca,
+                strokeBefore: sb, strokeAfter: sa,
+                strokeWidth: sw,
+                roleColors: cRoleColors.length >= 2 ? cRoleColors : undefined,
+            });
         });
         groupChildren.push(h('div', { key: 'chars', className: 'flex items-end', style: { gap: `${config.letterSpacing}px` } }, ...charEls));
 
         children.push(h('div', { key: gi, className: 'flex flex-col items-center', style: { position: 'relative' } }, ...groupChildren));
     });
 
-    return h('div', { className: 'flex items-end', style: { gap: `${config.letterSpacing}px`, opacity: fadeOpacity, position: 'relative' } }, ...children);
+    return h('div', { className: 'flex items-baseline', style: { gap: `${config.letterSpacing}px`, opacity: fadeOpacity, position: 'relative' } }, ...children);
 }

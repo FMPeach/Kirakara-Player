@@ -57,6 +57,86 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid #3f3f46; background: #27272a;
     color: #e4e4e7; font-size: 13px; outline: none; transition: border-color 0.2s;
 }
+.export-modal input[type="color"] {
+    width: 100%; height: 28px; padding: 2px; border-radius: 6px;
+    border: 1px solid #3f3f46; background: transparent; cursor: pointer;
+}
+.export-modal input[type="checkbox"], .export-modal input[type="radio"] {
+    width: auto; padding: 0; accent-color: #6366f1;
+}
+.export-modal input[type="number"] {
+    padding: 4px 6px; font-size: 12px; text-align: center;
+}
+.roles-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+.roles-scroll::-webkit-scrollbar { width: 5px; }
+.roles-scroll::-webkit-scrollbar-track { background: transparent; }
+.roles-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 10px; }
+.roles-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* 角色配置弹窗 —— 干净的独立样式，不受 .export-modal input 影响 */
+.roles-modal {
+    background: #1a1a1f; border: 1px solid #333; border-radius: 16px;
+    padding: 28px; width: 560px; max-width: 92vw;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6); color: #e4e4e7;
+}
+.roles-modal h2 { margin: 0 0 16px; font-size: 18px; font-weight: 700; }
+.roles-modal .roles-card {
+    background: rgba(39,39,42,0.5); border: 1px solid #3f3f46;
+    border-radius: 10px; padding: 12px; margin-bottom: 8px;
+}
+.roles-modal .roles-card.inactive {
+    background: rgba(39,39,42,0.25); border-color: #27272a;
+}
+.roles-modal .roles-card-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+}
+.roles-modal .roles-card-title {
+    font-size: 13px; font-weight: 700;
+}
+.roles-modal .roles-badge {
+    font-size: 9px; padding: 1px 6px; border-radius: 4px;
+}
+.roles-modal .roles-badge.active { background: rgba(245,158,11,0.2); color: #f59e0b; }
+.roles-modal .roles-badge.inactive { background: rgba(82,82,91,0.3); color: #71717a; }
+.roles-modal .roles-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.roles-modal .roles-row label { font-size: 10px; color: #a1a1aa; white-space: nowrap; }
+.roles-modal .roles-grid4 {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;
+}
+.roles-modal .roles-grid4 > div { text-align: center; }
+.roles-modal .roles-grid4 label { display: block; font-size: 9px; color: #71717a; margin-bottom: 2px; }
+.roles-modal input[type="text"], .roles-modal input[type="number"] {
+    padding: 5px 8px; border-radius: 6px; border: 1px solid #3f3f46;
+    background: #27272a; color: #e4e4e7; font-size: 12px; outline: none;
+}
+.roles-modal input[type="text"]:focus, .roles-modal input[type="number"]:focus { border-color: #6366f1; }
+.roles-modal input[type="color"] {
+    width: 100%; height: 26px; padding: 1px; border-radius: 5px;
+    border: 1px solid #3f3f46; background: transparent; cursor: pointer;
+}
+.roles-modal input[type="checkbox"] { width: auto; accent-color: #f59e0b; }
+.roles-modal input[type="radio"] { width: auto; accent-color: #6366f1; }
+.roles-modal .btn-del {
+    font-size: 10px; color: #f87171; background: none; border: none; cursor: pointer;
+}
+.roles-modal .btn-del:hover { color: #fca5a5; }
+.roles-modal .chip {
+    font-size: 10px; padding: 3px 10px; border-radius: 4px; cursor: pointer; border: none;
+    display: inline-flex; align-items: center;
+}
+.roles-modal .chip.on { background: #6366f1; color: #fff; }
+.roles-modal .chip.off { background: #3f3f46; color: #a1a1aa; }
+.roles-modal .btn-row { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+.roles-modal .btn { padding: 10px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+.roles-modal .btn-primary { background: #6366f1; color: #fff; }
+.roles-modal .btn-primary:hover { background: #818cf8; }
+.roles-modal .btn-ghost { background: transparent; color: #a1a1aa; border: 1px solid #3f3f46; }
+.roles-modal .btn-ghost:hover { background: #27272a; color: #e4e4e7; }
 .export-modal input:focus, .export-modal select:focus { border-color: #6366f1; }
 .export-modal .btn-row { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
 .export-modal .btn { padding: 10px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }

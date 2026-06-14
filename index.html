@@ -72,10 +72,10 @@
             const bgImageInputRef = useRef(null);
             const lrcFileInputRef = useRef(null);
             const [config, setConfig] = useState(() => {
-                try { const s = localStorage.getItem(STORAGE_KEY); if (s) return { ...CONFIG_DEFAULTS, ...JSON.parse(s) }; } catch (_) {}
+                try { const s = localStorage.getItem(STORAGE_KEY); if (s) { const parsed = JSON.parse(s); /* 清除旧 blob URL */ if (parsed.characterProfiles) for (const k in parsed.characterProfiles) { const p = parsed.characterProfiles[k]; if (p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } return { ...CONFIG_DEFAULTS, ...parsed }; } } catch (_) {}
                 return CONFIG_DEFAULTS;
             });
-            useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch (_) {} }, [config]);
+            useEffect(() => { try { /* 持久化前剥离 blob URL */ const save = JSON.parse(JSON.stringify(config)); if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
 
             const [showExportModal, setShowExportModal] = useState(false);
             const [expW, setExpW] = useState(1920);
@@ -88,6 +88,7 @@
             const [exporting, setExporting] = useState(false);
             const [expProgress, setExpProgress] = useState(0);
             const [expEta, setExpEta] = useState('');
+            const [showAllRoles, setShowAllRoles] = useState(false);
             const cancelRef = useRef(false);
 
             const exportCtxRef = useRef({ parsedData: [], config: CONFIG_DEFAULTS, entryBuf: ENTRY_BUF });
@@ -95,6 +96,31 @@
 
             const entryBuf = useMemo(() => getEntryBuf(config), [config.indicatorEnabled, config.indicatorDuration, config.fadeDurationMs]);
             const parsedData = useMemo(() => parseLyrics(lrcRaw, entryBuf, config), [lrcRaw, entryBuf, config.indicatorEnabled]);
+
+            // 歌词中实际出现的角色名集合
+            const activeRoles = useMemo(() => {
+                const s = new Set();
+                if (!parsedData) return s;
+                for (const line of parsedData) {
+                    for (const c of line.chars) {
+                        if (c.roles) for (const r of c.roles) s.add(r);
+                    }
+                }
+                return s;
+            }, [parsedData]);
+
+            // 自动检测歌词中的角色，填充到 characterProfiles（不覆盖已有手动配置）
+            useEffect(() => {
+                if (activeRoles.size === 0) return;
+                setConfig(prev => {
+                    const profiles = { ...prev.characterProfiles };
+                    let changed = false;
+                    for (const role of activeRoles) {
+                        if (!(role in profiles)) { profiles[role] = {}; changed = true; }
+                    }
+                    return changed ? { ...prev, characterProfiles: profiles } : prev;
+                });
+            }, [activeRoles]);
 
             const activeLines = useMemo(() => {
                 let l1 = null, l2 = null, l1P = -1, l2P = -1, l1W = false, l2W = false;
@@ -269,6 +295,99 @@
                                     <div className="flex items-center gap-2"><span className="text-[10px] text-zinc-500 whitespace-nowrap">背景色</span><input type="color" value={config.bgColor} onChange={e=>setConfig({...config,bgColor:e.target.value})} className="w-8 h-6 rounded bg-zinc-800 cursor-pointer border border-zinc-700"/><input type="text" value={config.bgColor} onChange={e=>setConfig({...config,bgColor:e.target.value})} className="flex-1 bg-zinc-800 rounded p-1 text-[10px] text-center border border-zinc-700 font-mono"/></div>
                                 </section>
 
+                                {/* 角色配置 */}
+                                <section className="space-y-2 pt-3 border-t border-zinc-800">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Palette className="w-3 h-3"/> 角色配置</label>
+                                        <button className="text-[9px] text-indigo-400 hover:text-indigo-300"
+                                            onClick={() => setShowAllRoles(true)}>
+                                            查看全部配置
+                                        </button>
+                                    </div>
+                                    {Object.entries(config.characterProfiles||{}).filter(([rn]) => activeRoles.has(rn)).length === 0 && (
+                                        <div className="text-[9px] text-zinc-600 text-center py-1">当前歌词无角色</div>
+                                    )}
+                                    {Object.entries(config.characterProfiles||{}).filter(([rn]) => activeRoles.has(rn)).map(([roleName, profile]) => {
+                                        const p = profile || {};
+                                        const updateRole = (patch) => setConfig({...config, characterProfiles:{...config.characterProfiles, [roleName]:{...p, ...patch}}});
+                                        const useImage = !!p.imageMode;
+                                        return (
+                                            <div key={roleName} className="bg-zinc-800/50 rounded p-2 space-y-1.5 border border-zinc-700/50">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-bold" style={{color: p.displayColor || p.colorBefore || config.colorBefore}}>{roleName}</span>
+                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                        <input type="checkbox" checked={!!p.showLabel} onChange={e => updateRole({ showLabel: e.target.checked || undefined })}
+                                                            className="accent-amber-500 w-3 h-3" />
+                                                        <span className="text-[9px] text-zinc-500">外显</span>
+                                                    </label>
+                                                </div>
+                                                {/* 文图切换 + 内容（同行） */}
+                                                <div className="flex items-center gap-1">
+                                                    <button className={`text-[9px] px-1.5 py-0.5 rounded flex-shrink-0 border-none cursor-pointer ${!useImage?'bg-indigo-600 text-white':'bg-zinc-700 text-zinc-400'}`}
+                                                        onClick={()=>updateRole({imageMode:undefined})}>文字</button>
+                                                    <button className={`text-[9px] px-1.5 py-0.5 rounded flex-shrink-0 border-none cursor-pointer ${useImage?'bg-indigo-600 text-white':'bg-zinc-700 text-zinc-400'}`}
+                                                        onClick={()=>updateRole({imageMode:true})}>图片</button>
+                                                    {useImage
+                                                        ? <div className="flex items-center gap-1 flex-1 min-w-0 bg-zinc-700 rounded border border-zinc-600 pl-0.5 pr-1 py-0.5">
+                                                            <input type="file" accept="image/*" className="hidden" id={`img-file-${roleName}`}
+                                                                onChange={e=>{const f=e.target.files[0];if(f)updateRole({image:URL.createObjectURL(f), imageName:f.name});}} />
+                                                            <button className="text-[9px] bg-zinc-600 hover:bg-zinc-500 text-zinc-300 rounded px-1.5 py-0.5 flex-shrink-0 border-none cursor-pointer"
+                                                                onClick={()=>document.getElementById(`img-file-${roleName}`)?.click()}>选择</button>
+                                                            <span className={`text-[9px] flex-1 truncate ${p.image?'text-zinc-300':'text-zinc-600'}`}>{p.imageName || (p.image ? '已选图' : '未选择')}</span>
+                                                            {p.image && <button className="text-[9px] text-red-400 hover:text-red-300 flex-shrink-0 bg-none border-none cursor-pointer"
+                                                                onClick={()=>updateRole({image:undefined, imageName:undefined})}>✕</button>}
+                                                        </div>
+                                                        : <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                            <span className="text-[8px] text-zinc-500 flex-shrink-0">外显名</span>
+                                                            <input type="text" value={p.displayName || ''} placeholder={roleName}
+                                                                onChange={e => updateRole({ displayName: e.target.value })}
+                                                                className="flex-1 bg-zinc-700 rounded p-1 text-[9px] border border-zinc-600 outline-none min-w-0" />
+                                                        </div>
+                                                    }
+                                                </div>
+                                                {/* 走字颜色 */}
+                                                <div className="grid grid-cols-4 gap-1">
+                                                    {[['走字前','colorBefore'],['走字后','colorAfter'],['描边前','strokeColorBefore'],['描边后','strokeColorAfter']].map(([l,k]) =>
+                                                        <div key={k}>
+                                                            <div className="text-[7px] text-zinc-500 mb-0.5">{l}</div>
+                                                            <input type="color" value={p[k] || config[k]}
+                                                                onChange={e => updateRole({ [k]: e.target.value })}
+                                                                className="w-full h-6 rounded bg-zinc-700 cursor-pointer border border-zinc-600" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {/* 图片参数（走字颜色下方） */}
+                                                {useImage && <div className="grid grid-cols-4 gap-1">
+                                                    {[['Y偏移','imageOffsetY',0],['缩放%','labelScale',100],['左距','labelMarginLeft',0],['右距','labelMarginRight',0]].map(([l,k,fb]) =>
+                                                        <div key={k}>
+                                                            <div className="text-[7px] text-zinc-500 mb-0.5">{l}</div>
+                                                            <input type="number" value={p[k] ?? (fb===100?100:'')} placeholder={String(fb)} step="1"
+                                                                onChange={e => { const v = parseInt(e.target.value); updateRole({ [k]: isNaN(v) ? undefined : v }); }}
+                                                                className="w-full bg-zinc-700 rounded p-1 text-[9px] text-center border border-zinc-600 outline-none" />
+                                                        </div>
+                                                    )}
+                                                </div>}
+                                                {/* 标签设置（仅文字模式） */}
+                                                {!useImage && <div className="flex items-center gap-1 text-[9px]">
+                                                    <span className="text-zinc-500">文字色</span>
+                                                    <input type="color" value={p.displayColor || p.colorBefore || config.colorBefore}
+                                                        onChange={e => updateRole({ displayColor: e.target.value })}
+                                                        className="w-5 h-4 rounded bg-zinc-700 cursor-pointer border border-zinc-600 p-0 flex-shrink-0" />
+                                                    <span className="text-zinc-500">描边色</span>
+                                                    <input type="color" value={p.labelStrokeColor || config.strokeColorBefore}
+                                                        onChange={e => updateRole({ labelStrokeColor: e.target.value })}
+                                                        className="w-5 h-4 rounded bg-zinc-700 cursor-pointer border border-zinc-600 p-0 flex-shrink-0" />
+                                                    <span className="text-zinc-500">缩放</span>
+                                                    <input type="number" value={p.labelScale ?? 100} step="5" min="10" max="300"
+                                                        onChange={e => updateRole({ labelScale: parseInt(e.target.value) || 100 })}
+                                                        className="w-11 bg-zinc-700 rounded p-0.5 text-[9px] text-center border border-zinc-600 outline-none" />
+                                                    <span className="text-zinc-500">%</span>
+                                                </div>}
+                                            </div>
+                                        );
+                                    })}
+                                </section>
+
                                 {/* 淡入淡出 */}
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Blur className="w-3 h-3"/> 淡入淡出</label>
@@ -366,6 +485,86 @@
                                 </div>
                                 <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setShowExportModal(false)}>取消</button><button className="btn btn-primary" onClick={doExport}>开始导出</button></div>
                                 <div className="export-tips mt-3 text-xs text-zinc-400">{expFormat==='mp4'?'':'WebM 不含音频流，请自行混流。'}</div>
+                            </div>
+                        </div>}
+                        {showAllRoles && <div className="export-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setShowAllRoles(false)}}>
+                            <div className="roles-modal"><h2>🎨 全部角色配置</h2>
+                                <div className="roles-row" style={{marginBottom:14}}>
+                                    <input type="text" placeholder="新角色名（如 pink）…" id="new-role-input" style={{flex:1}}
+                                        onKeyDown={e=>{if(e.key==='Enter'){const v=e.target.value.trim();if(v&&!(config.characterProfiles||{})[v]){setConfig({...config,characterProfiles:{...(config.characterProfiles||{}),[v]:{}}});e.target.value='';}}}} />
+                                    <button className="btn btn-primary" style={{padding:'6px 16px',fontSize:12}}
+                                        onClick={()=>{const inp=document.getElementById('new-role-input');const v=inp?.value?.trim();if(v&&!(config.characterProfiles||{})[v]){setConfig({...config,characterProfiles:{...(config.characterProfiles||{}),[v]:{}}});inp.value='';}}}>
+                                        添加
+                                    </button>
+                                </div>
+                                <div className="roles-scroll" style={{maxHeight:'55vh',overflowY:'auto',paddingRight:4}}>
+                                    {Object.keys(config.characterProfiles||{}).length===0 && <div style={{textAlign:'center',color:'#71717a',fontSize:12,padding:20}}>暂无角色，上方输入添加</div>}
+                                    {Object.entries(config.characterProfiles||{}).map(([roleName, profile]) => {
+                                        const p = profile || {};
+                                        const isActive = activeRoles.has(roleName);
+                                        const updateRole = (patch) => setConfig({...config, characterProfiles:{...config.characterProfiles, [roleName]:{...p, ...patch}}});
+                                        const delRole = () => { const np = {...config.characterProfiles}; delete np[roleName]; setConfig({...config, characterProfiles:np}); };
+                                        const useImage = !!p.imageMode;
+                                        return (
+                                            <div key={roleName} className={`roles-card${isActive?'':' inactive'}`}>
+                                                <div className="roles-card-header">
+                                                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                                        <span className="roles-card-title" style={{color:p.displayColor||p.colorBefore||config.colorBefore}}>{roleName}</span>
+                                                        <label style={{display:'flex',alignItems:'center',gap:3,cursor:'pointer',fontSize:10,color:'#a1a1aa'}}>
+                                                            <input type="checkbox" checked={!!p.showLabel} onChange={e => updateRole({ showLabel: e.target.checked || undefined })} /> 外显
+                                                        </label>
+                                                        <span className={`roles-badge${isActive?' active':' inactive'}`}>{isActive ? '歌词中' : '未使用'}</span>
+                                                    </div>
+                                                    {!isActive && <button className="btn-del" onClick={delRole}>✕ 删除</button>}
+                                                </div>
+                                                <div className="roles-row">
+                                                    <button className={`chip${!useImage?' on':' off'}`} onClick={()=>updateRole({imageMode:undefined})}>文字</button>
+                                                    <button className={`chip${useImage?' on':' off'}`} onClick={()=>updateRole({imageMode:true})}>图片</button>
+                                                    {useImage
+                                                        ? <div style={{display:'flex',alignItems:'center',gap:5,flex:1,background:'#27272a',border:'1px solid #3f3f46',borderRadius:6,padding:'2px 6px'}}>
+                                                            <input type="file" accept="image/*" style={{display:'none'}} id={`all-img-file-${roleName}`}
+                                                                onChange={e=>{const f=e.target.files[0];if(f)updateRole({image:URL.createObjectURL(f), imageName:f.name});}} />
+                                                            <button className="chip off" style={{padding:'2px 6px',fontSize:10}}
+                                                                onClick={()=>document.getElementById(`all-img-file-${roleName}`)?.click()}>📁 选择</button>
+                                                            <span style={{fontSize:10,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:p.image?'#d4d4d8':'#71717a'}}>{p.imageName || (p.image ? '已选图' : '未选择')}</span>
+                                                            {p.image && <button className="btn-del" onClick={()=>updateRole({image:undefined,imageName:undefined})}>✕</button>}
+                                                        </div>
+                                                        : <div style={{display:'flex',alignItems:'center',gap:4,flex:1}}>
+                                                            <label>外显名</label>
+                                                            <input type="text" value={p.displayName || ''} placeholder={roleName} style={{flex:1,minWidth:80}}
+                                                                onChange={e => updateRole({ displayName: e.target.value })} />
+                                                        </div>
+                                                    }
+                                                </div>
+                                                <div className="roles-grid4">
+                                                    {[['走字前','colorBefore'],['走字后','colorAfter'],['描边前','strokeColorBefore'],['描边后','strokeColorAfter']].map(([l,k]) =>
+                                                        <div key={k}><label>{l}</label>
+                                                            <input type="color" value={p[k] || config[k]}
+                                                                onChange={e => updateRole({ [k]: e.target.value })} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {!useImage && <div className="roles-row">
+                                                    <label>标签色</label><input type="color" value={p.displayColor||p.colorBefore||config.colorBefore} onChange={e=>updateRole({displayColor:e.target.value})} style={{width:36,height:24}} />
+                                                    <label>标签描边</label><input type="color" value={p.labelStrokeColor||config.strokeColorBefore} onChange={e=>updateRole({labelStrokeColor:e.target.value})} style={{width:36,height:24}} />
+                                                    <label>缩放%</label><input type="number" value={p.labelScale??100} step="5" min="10" max="300" style={{width:56}}
+                                                        onChange={e=>updateRole({labelScale:parseInt(e.target.value)||100})} />
+                                                </div>}
+                                                {useImage && <div className="roles-row">
+                                                    <label>Y偏移</label><input type="number" value={p.imageOffsetY||''} placeholder="0" step="1" style={{width:50}}
+                                                        onChange={e=>updateRole({imageOffsetY:parseInt(e.target.value)||undefined})} />
+                                                    <label>缩放%</label><input type="number" value={p.labelScale??100} step="5" min="10" max="300" style={{width:56}}
+                                                        onChange={e=>updateRole({labelScale:parseInt(e.target.value)||100})} />
+                                                    <label>左距</label><input type="number" value={p.labelMarginLeft||''} placeholder="0" step="1" style={{width:50}}
+                                                        onChange={e=>updateRole({labelMarginLeft:parseInt(e.target.value)||undefined})} />
+                                                    <label>右距</label><input type="number" value={p.labelMarginRight||''} placeholder="0" step="1" style={{width:50}}
+                                                        onChange={e=>updateRole({labelMarginRight:parseInt(e.target.value)||undefined})} />
+                                                </div>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="btn-row" style={{marginTop:12}}><button className="btn btn-ghost" onClick={()=>setShowAllRoles(false)}>关闭</button></div>
                             </div>
                         </div>}
                     </div>

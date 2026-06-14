@@ -109,20 +109,65 @@ function parseLyrics(lrcRaw, entryBuf, config) {
         return null;
     }
 
-    // ---- 第二遍：解析 LRC 逐字行 ----
+    // ---- 第二遍：去角色标签后统一解析走字，再映射角色回每个字 ----
     const lyrics = [];
+    let inheritedRole = null;
     lines.forEach(line => {
         try {
             if (/^@ruby/i.test(line)) return;
-            if (!line.startsWith('[')) return;
-            const tags = line.match(timeRegex);
-            if (!tags) return;
+            timeRegex.lastIndex = 0;
+            if (!timeRegex.test(line)) return;
 
-            const rawSegments = line.split(timeRegex);
+            // ---- 1. 构建"每个文字→角色"映射（走原行，跳过【】和时间标签） ----
+            const textCharRoles = [];
+            const specials = [];
+            const roleRegex2 = /【([^】]+)】/g;
+            let m;
+            while ((m = roleRegex2.exec(line)) !== null) {
+                specials.push({ start: m.index, end: m.index + m[0].length, type: 'role',
+                    role: m[1].trim().split('+').map(r => r.trim()).filter(Boolean) });
+            }
+            const timeRegex2 = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
+            while ((m = timeRegex2.exec(line)) !== null) {
+                specials.push({ start: m.index, end: m.index + m[0].length, type: 'time' });
+            }
+            specials.sort((a, b) => a.start - b.start);
+
+            let curRole = null, curExplicit = false, pos = 0;
+            for (const s of specials) {
+                for (let j = pos; j < s.start; j++) {
+                    textCharRoles.push({ char: line[j], role: curRole, roleExplicit: curExplicit });
+                    curExplicit = false;
+                }
+                if (s.type === 'role') { curRole = s.role; curExplicit = true; }
+                pos = s.end;
+            }
+            for (let j = pos; j < line.length; j++) {
+                textCharRoles.push({ char: line[j], role: curRole, roleExplicit: curExplicit });
+                curExplicit = false;
+            }
+
+            // 跨行角色继承：若本行首字无角色，沿用上一行的角色
+            if (textCharRoles.length > 0 && textCharRoles[0].role === null && inheritedRole !== null) {
+                for (const tcr of textCharRoles) {
+                    if (tcr.role === null) tcr.role = inheritedRole;
+                }
+            }
+            // 更新继承角色：用本行末字的角色
+            if (textCharRoles.length > 0) {
+                const lastRole = textCharRoles[textCharRoles.length - 1].role;
+                if (lastRole !== null) inheritedRole = lastRole;
+            }
+
+            // ---- 2. 去掉角色标签后用原始逻辑解析走字 ----
+            const cleanLine = line.replace(/【[^】]+】/g, '');
+            const tags = cleanLine.match(timeRegex);
+            if (!tags) return;
+            const rawSegments = cleanLine.split(timeRegex);
             if (rawSegments.every(s => !s)) return;
 
-            const chars = [];
-            let lastSegHadNextTag = true;
+            const allChars = [];
+            let hasNextTag = true;
             let tagIdx = 0;
             let started = false;
             rawSegments.forEach((seg) => {
@@ -130,49 +175,53 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                 started = true;
                 const tokens = parseRubyInline(seg);
                 const segStart = parseTimeToSeconds(tags[tagIdx]);
-                const hasNextTag = !!tags[tagIdx + 1];
-                lastSegHadNextTag = hasNextTag;
+                hasNextTag = !!tags[tagIdx + 1];
                 const segEnd = hasNextTag ? parseTimeToSeconds(tags[tagIdx + 1]) : segStart + 0.5;
                 tagIdx++;
-
                 const tokenCount = tokens.length;
                 tokens.forEach((token, j) => {
                     const tStart = segStart + (segEnd - segStart) * (j / tokenCount);
                     const tEnd = segStart + (segEnd - segStart) * ((j + 1) / tokenCount);
-                    chars.push({
+                    allChars.push({
                         text: token.text, ruby: token.ruby || null,
                         rubySpan: token.ruby ? 1 : 0,
                         startTime: tStart, endTime: tEnd,
+                        roles: null, roleExplicit: false,
                     });
                 });
             });
 
-            if (chars.length > 0) {
+            // ---- 3. 将角色映射回每个字 ----
+            for (let ci = 0; ci < allChars.length && ci < textCharRoles.length; ci++) {
+                allChars[ci].roles = textCharRoles[ci].role;
+                allChars[ci].roleExplicit = textCharRoles[ci].roleExplicit;
+            }
+
+            if (allChars.length > 0) {
                 // 多字词 @ruby 匹配
-                for (let ci = 0; ci < chars.length; ci++) {
-                    if (chars[ci].ruby) continue;
-                    let combined = chars[ci].text;
-                    for (let len = 2; len <= 4 && ci + len <= chars.length; len++) {
+                for (let ci = 0; ci < allChars.length; ci++) {
+                    if (allChars[ci].ruby) continue;
+                    let combined = allChars[ci].text;
+                    for (let len = 2; len <= 4 && ci + len <= allChars.length; len++) {
                         let blocked = false;
-                        for (let k = 1; k < len; k++) { if (chars[ci + k].ruby) { blocked = true; break; } }
+                        for (let k = 1; k < len; k++) { if (allChars[ci + k].ruby) { blocked = true; break; } }
                         if (blocked) break;
-                        combined += chars[ci + len - 1].text;
-                        const r = findRuby(combined, chars[ci].startTime);
-                        if (r) { chars[ci].ruby = r.reading; chars[ci].rubyChars = r.rubyChars; chars[ci].rubySpan = len; break; }
+                        combined += allChars[ci + len - 1].text;
+                        const r = findRuby(combined, allChars[ci].startTime);
+                        if (r) { allChars[ci].ruby = r.reading; allChars[ci].rubyChars = r.rubyChars; allChars[ci].rubySpan = len; break; }
                     }
                 }
-                // 单字 @ruby 匹配
-                for (let ci = 0; ci < chars.length; ci++) {
-                    if (chars[ci].ruby) continue;
-                    const r = findRuby(chars[ci].text, chars[ci].startTime);
-                    if (r) { chars[ci].ruby = r.reading; chars[ci].rubyChars = r.rubyChars; chars[ci].rubySpan = 1; }
+                for (let ci = 0; ci < allChars.length; ci++) {
+                    if (allChars[ci].ruby) continue;
+                    const r = findRuby(allChars[ci].text, allChars[ci].startTime);
+                    if (r) { allChars[ci].ruby = r.reading; allChars[ci].rubyChars = r.rubyChars; allChars[ci].rubySpan = 1; }
                 }
 
                 lyrics.push({
-                    startTime: chars[0].startTime,
-                    endTime: chars[chars.length - 1].endTime,
-                    chars,
-                    tailAuto: !lastSegHadNextTag,
+                    startTime: allChars[0].startTime,
+                    endTime: allChars[allChars.length - 1].endTime,
+                    chars: allChars,
+                    tailAuto: !hasNextTag,
                 });
             }
         } catch (e) {

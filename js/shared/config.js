@@ -12,6 +12,13 @@ const CONFIG_DEFAULTS = {
     indicatorStrokeWidth: 3, indicatorStrokeColor: '#000000', indicatorFillColor: '#ffffff',
     indicatorFadeRatio: 0.0, indicatorOffsetX: 0, indicatorOffsetY: 8,
     bgImageOpacity: 1.0,
+    // 角色配置：{ roleName: { displayName, displayColor, showLabel, labelStrokeColor, colorBefore, colorAfter, strokeColorBefore, strokeColorAfter, image } }
+    // displayName: 可选外显名称（如 "A"），缺省显示 roleName
+    // displayColor: 可选外显标签颜色，缺省用 colorBefore
+    // showLabel: 是否在歌词前显示角色名标签
+    // labelStrokeColor: 外显标签描边色，缺省用全局 strokeColorBefore
+    // image: 可选图片 URL，不为空时渲染图片替代文字
+    characterProfiles: {},
 };
 
 const STORAGE_KEY = 'karaoke-proto-config';
@@ -28,3 +35,32 @@ function getEntryBuf(config) {
     }
     return ENTRY_BUF;
 }
+
+
+
+// 根据 char.roles 解析颜色集（单角色→1组，双角色→2组，无角色→全局默认）
+// 返回: [{ colorBefore, colorAfter, strokeColorBefore, strokeColorAfter, strokeWidth, image, displayName, displayColor }]
+function resolveRoleColors(roles, config) {
+    const profiles = config.characterProfiles || {};
+    const defaults = {
+        colorBefore: config.colorBefore, colorAfter: config.colorAfter,
+        strokeColorBefore: config.strokeColorBefore, strokeColorAfter: config.strokeColorAfter,
+        strokeWidth: config.strokeWidth, image: null, displayName: null, displayColor: null,
+    };
+    if (!roles || roles.length === 0) return [defaults];
+    return roles.map(roleName => {
+        const p = profiles[roleName];
+        if (!p) return { ...defaults, displayName: roleName };
+        return {
+            colorBefore: p.colorBefore || config.colorBefore,
+            colorAfter: p.colorAfter || config.colorAfter,
+            strokeColorBefore: p.strokeColorBefore || config.strokeColorBefore,
+            strokeColorAfter: p.strokeColorAfter || config.strokeColorAfter,
+            strokeWidth: p.strokeWidth || config.strokeWidth,
+            image: p.image || null,
+            displayName: p.displayName || roleName,
+            displayColor: p.displayColor || p.colorBefore || config.colorBefore,
+        };
+    });
+}
+
