@@ -224,7 +224,7 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                 for (let ci = 0; ci < allChars.length; ci++) {
                     if (allChars[ci].ruby) continue;
                     let combined = allChars[ci].text;
-                    for (let len = 2; len <= 4 && ci + len <= allChars.length; len++) {
+                    for (let len = 2; len <= 16 && ci + len <= allChars.length; len++) {
                         let blocked = false;
                         for (let k = 1; k < len; k++) { if (allChars[ci + k].ruby) { blocked = true; break; } }
                         if (blocked) break;
