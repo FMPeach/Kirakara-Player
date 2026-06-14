@@ -292,7 +292,7 @@ function LyricLine({ line, config, currentTime }) {
                 const offsetY = gProfile.imageOffsetY || 0;
                 if (gProfile.imageMode && gProfile.image) {
                     const marginL = (gProfile.labelMarginLeft || 0);
-                    const marginR = (gProfile.labelMarginRight || 0) + config.letterSpacing + 2;
+                    const marginR = (gProfile.labelMarginRight || 0);
                     children.push(h('img', {
                         key: 'label-' + gi + '-' + rk, src: gProfile.image, style: {
                             height: `${labelFs}px`, width: 'auto', objectFit: 'contain',

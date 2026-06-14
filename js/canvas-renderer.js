@@ -162,7 +162,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         labelItem.img = img;
 
                         const marginL = profile.labelMarginLeft || 0;
-                        const marginR = (profile.labelMarginRight || 0) + ls + 0;
+                        const marginR = (profile.labelMarginRight || 0);
                         
                         let imgW = labelFs; 
                         if (img && img.complete && img.naturalWidth > 0) {
