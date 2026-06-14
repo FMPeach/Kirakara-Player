@@ -140,7 +140,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
     const drawLineCore = (dcx, line, x, y, alignRight) => {
         if (!line || !line.chars) return;
 
-        drawIndicator(dcx, line, x, y - Math.round(config.fontSize * 0.9) - 5);
+        drawIndicator(dcx, line, x, y - Math.round(config.fontSize * 0.88));
 
         const fs = config.fontSize, ls = config.letterSpacing, ff = config.fontFamily;
         const fw = config.fontBold ? 'bold ' : '';
@@ -216,7 +216,8 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         for (const item of layoutItems) {
             if (item.type === 'group') {
                 const m = rubyMetrics[groupIdx] || {};
-                item.w = m.effectiveW;
+                // 仅当 Isolate 实际撑宽该组时才覆盖 w，保留 Canvas 自身的空格 fallback 测量
+                if (m.isolatePad > 0) item.w = m.effectiveW;
                 item.isolatePad = m.isolatePad || 0;
                 groupIdx++;
             }

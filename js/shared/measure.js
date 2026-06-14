@@ -133,16 +133,15 @@ function computeRubyLayout(groups, config) {
         }
     }
 
-    // Step 3: Avoidance — 相邻两组注音互撞时，插入额外间距（始终生效）
-    // 注音区域之间的最小间距使用 rubyLetterSpacing，确保视觉上不紧贴
+    // Step 3: Avoidance — 确保相邻注音区域间距 ≥ rubyLetterSpacing（始终生效）
+    // 使用代数和（非各自 max），窄注音的内部留白也算入缓冲
+    // 单条 max(0, ...) 公式，连续无跳变
     const extraGaps = [];
     for (let i = 0; i < metrics.length - 1; i++) {
         const m1 = metrics[i], m2 = metrics[i + 1];
         if (m1.rubyW > 0 && m2.rubyW > 0) {
-            const overflowR = Math.max(0, (m1.rubyW - m1.effectiveW) / 2);
-            const overflowL = Math.max(0, (m2.rubyW - m2.effectiveW) / 2);
-            const needGap = overflowR + overflowL + rls;
-            extraGaps.push(Math.max(0, needGap - ls));
+            const overflowSum = (m1.rubyW - m1.effectiveW) + (m2.rubyW - m2.effectiveW);
+            extraGaps.push(Math.max(0, overflowSum / 2 + rls - ls));
         } else {
             extraGaps.push(0);
         }
