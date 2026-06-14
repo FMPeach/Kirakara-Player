@@ -25,14 +25,36 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const textBase = { fontFamily, fontWeight, fontSize: `${fontSize}px`, lineHeight: '1.2', whiteSpace: 'pre', padding: `${safePad}px`, display: 'inline-block', fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none' };
 
     if (N >= 2) {
-        const segPct = 100 / N;
         const seamFadePx = 2;
+        const lh = 1.2;
+        // 整个 DOM 元素的高：行高 + 上下 padding 防切断
+        const totalH = fontSize * lh + safePad * 2;
+        // 【核心修正】计算物理 1.0em 字框在 DOM 中的绝对顶部起点 (减去 line-height 均分的留白)
+        const emTopPx = safePad + fontSize * (lh - 1.0) / 2;
+        const cjTopPct = (emTopPx / totalH) * 100;
+        const cjBotPct = ((emTopPx + fontSize) / totalH) * 100;
+        const cjRange = cjBotPct - cjTopPct;
+        const seamFadePct = (seamFadePx / totalH) * 100;
+
         const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
-            const topPct = i * segPct, bottomPct = 100 - (i + 1) * segPct;
-            const roleMask = `linear-gradient(to bottom, transparent 0%, transparent calc(${topPct}% - ${seamFadePx}px), black ${topPct}%, black calc(100% - ${bottomPct}%), transparent calc(100% - ${bottomPct}% + ${seamFadePx}px), transparent 100%)`;
+            const roleTop = cjTopPct + i * cjRange / N;
+            const roleBot = cjTopPct + (i + 1) * cjRange / N;
+            
+            let roleMask;
+            if (i === 0) {
+                // 顶部层：向上无限延伸黑底保护超粗描边，向下做 2px 羽化
+                roleMask = `linear-gradient(to bottom, black 0%, black ${roleBot}%, transparent ${roleBot + seamFadePct}%, transparent 100%)`;
+            } else if (i === N - 1) {
+                // 底部层：向上做 2px 羽化，向下无限延伸黑底保护超粗描边
+                roleMask = `linear-gradient(to bottom, transparent 0%, transparent ${roleTop - seamFadePct}%, black ${roleTop}%, black 100%)`;
+            } else {
+                // 中间层：上下均做 2px 羽化
+                roleMask = `linear-gradient(to bottom, transparent 0%, transparent ${roleTop - seamFadePct}%, black ${roleTop}%, black ${roleBot}%, transparent ${roleBot + seamFadePct}%, transparent 100%)`;
+            }
+
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
                 h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
@@ -60,10 +82,8 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         fontSize: `${fontSize}px`, letterSpacing: `${letterSpacing}px`,
         lineHeight: '1.1', whiteSpace: 'pre',
         padding: `${safePad}px`, display: 'inline-block',
-        backfaceVisibility: 'hidden',  // 强制灰度抗锯齿，消除小字号 ClearType 彩边
-        fontKerning: 'none',
-        fontVariantLigatures: 'none',
-        fontOpticalSizing: 'none',
+        backfaceVisibility: 'hidden',
+        fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
     };
     const rightClip = 100 - pct;
 
@@ -77,14 +97,35 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const marginStyle = { marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: -(safePad + (letterSpacing || 0)) };
 
     if (N >= 2) {
-        const segPct = 100 / N;
         const seamFadePx = 2;
+        const lh = 1.1;
+        const totalH = fontSize * lh + safePad * 2;
+        // 【核心修正】与主字同理，抵消 line-height 带来的视觉偏差
+        const emTopPx = safePad + fontSize * (lh - 1.0) / 2;
+        const cjTopPct = (emTopPx / totalH) * 100;
+        const cjBotPct = ((emTopPx + fontSize) / totalH) * 100;
+        const cjRange = cjBotPct - cjTopPct;
+        const seamFadePct = (seamFadePx / totalH) * 100;
+
         const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
-            const topPct = i * segPct, bottomPct = 100 - (i + 1) * segPct;
-            const roleMask = `linear-gradient(to bottom, transparent 0%, transparent calc(${topPct}% - ${seamFadePx}px), black ${topPct}%, black calc(100% - ${bottomPct}%), transparent calc(100% - ${bottomPct}% + ${seamFadePx}px), transparent 100%)`;
+            const roleTop = cjTopPct + i * cjRange / N;
+            const roleBot = cjTopPct + (i + 1) * cjRange / N;
+            
+            let roleMask;
+            if (i === 0) {
+                // 顶部层保护罩
+                roleMask = `linear-gradient(to bottom, black 0%, black ${roleBot}%, transparent ${roleBot + seamFadePct}%, transparent 100%)`;
+            } else if (i === N - 1) {
+                // 底部层保护罩
+                roleMask = `linear-gradient(to bottom, transparent 0%, transparent ${roleTop - seamFadePct}%, black ${roleTop}%, black 100%)`;
+            } else {
+                // 中间羽化过渡
+                roleMask = `linear-gradient(to bottom, transparent 0%, transparent ${roleTop - seamFadePct}%, black ${roleTop}%, black ${roleBot}%, transparent ${roleBot + seamFadePct}%, transparent 100%)`;
+            }
+
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
                 h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text)));
@@ -97,6 +138,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
         h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% ${rightClip}% -50% -${safePad}px)` } }, text));
 }
+
 
 // ---- LyricLine: 歌词行（连词组注音居中） ----
 function LyricLine({ line, config, currentTime }) {
