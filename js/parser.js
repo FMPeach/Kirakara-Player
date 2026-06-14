@@ -170,8 +170,30 @@ function parseLyrics(lrcRaw, entryBuf, config) {
             let hasNextTag = true;
             let tagIdx = 0;
             let started = false;
+            // 行首文字无前导时间戳时，先用合成时间，不消耗 tags[0]
+            const hasLeadingText = rawSegments[0] && rawSegments[0].trim();
+            if (hasLeadingText && tags.length > 0) {
+                const firstTagTime = parseTimeToSeconds(tags[0]);
+                const tokens = parseRubyInline(rawSegments[0]);
+                const segStart = Math.max(0, firstTagTime - 0.15);
+                const segEnd = firstTagTime;
+                const tokenCount = tokens.length;
+                tokens.forEach((token, j) => {
+                    const tStart = segStart + (segEnd - segStart) * (j / tokenCount);
+                    const tEnd = segStart + (segEnd - segStart) * ((j + 1) / tokenCount);
+                    allChars.push({
+                        text: token.text, ruby: token.ruby || null,
+                        rubySpan: token.ruby ? 1 : 0,
+                        startTime: tStart, endTime: tEnd,
+                        roles: null, roleExplicit: false,
+                    });
+                });
+                started = true;
+            }
             rawSegments.forEach((seg) => {
                 if (!seg) { if (started) tagIdx++; return; }
+                // 跳过已在上面处理过的行首文字
+                if (hasLeadingText && seg === rawSegments[0]) return;
                 started = true;
                 const tokens = parseRubyInline(seg);
                 const segStart = parseTimeToSeconds(tags[tagIdx]);
