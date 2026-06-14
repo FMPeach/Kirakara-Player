@@ -14,7 +14,6 @@ function _preloadCanvasImages(config) {
     if (!config || !config.characterProfiles) return;
     for (const key in config.characterProfiles) {
         const profile = config.characterProfiles[key];
-        // 只要配置里有图片，不管当前时间是多少，立马后台下载
         if (profile.imageMode && profile.image && !window._labelImgCache[profile.image]) {
             const img = new Image();
             img.src = profile.image; // 触发浏览器底层静默下载
@@ -24,7 +23,6 @@ function _preloadCanvasImages(config) {
 }
 
 function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
-    // 每次渲染前检查预加载（利用字典特性，实际上只会执行一次下载）
     _preloadCanvasImages(config);
 
     if (!lyrics || lyrics.length === 0) {
@@ -33,7 +31,6 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
     }
     const EXIT_BUF = 2.0;
 
-    // ---- 时间窗口筛选 l1/l2 ----
     let l1 = null, l2 = null, l1Para = -1, l2Para = -1, l1Walk = false, l2Walk = false;
     for (const line of lyrics) {
         const inW = time >= (line.entryTime ?? line.startTime - entryBuf) && time <= line.endTime + EXIT_BUF;
@@ -61,13 +58,13 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         return Math.max(0, Math.min(1, opacity));
     };
 
-    const drawShadowStrokeText = (dcx, text, x, y, color, width) => {
-        if (width <= 0 || !color) return;
+    const drawShadowStrokeText = (dcx, text, x, y, colorOrGrad, width) => {
+        if (width <= 0 || !colorOrGrad) return;
         dcx.save();
         dcx.lineJoin = 'round';
         dcx.miterLimit = 2;
         dcx.lineWidth = width * 2.2;
-        dcx.strokeStyle = color;
+        dcx.strokeStyle = colorOrGrad;
         dcx.strokeText(text, x, y);
         dcx.restore();
     };
@@ -102,7 +99,6 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         dcx.globalAlpha = savedAlpha;
     };
 
-    // ---- getRoleColors: 角色颜色解析 ----
     const getRoleColors = (c, cfg) => {
         const roles = c?.roles;
         const profiles = cfg.characterProfiles || {};
@@ -115,7 +111,32 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         });
     };
 
-    // 核心绘制（全不透明）
+    // ---- 新增：构建带羽化缝隙的线性渐变色 (对齐 DOM 的 2px 过渡效果) ----
+    const buildRoleGradient = (dcx, yTop, yBottom, roleColors, prop, seamFadePx) => {
+        if (!roleColors || roleColors.length <= 1) return roleColors[0][prop];
+        
+        const grad = dcx.createLinearGradient(0, yTop, 0, yBottom);
+        const N = roleColors.length;
+        const H = Math.max(1, yBottom - yTop);
+        // 计算 2px 对应的百分比跨度，限制最大不能超过单层厚度的一半
+        const fadeRatio = Math.min(seamFadePx / H, 0.5 / N);
+
+        for (let i = 0; i < N; i++) {
+            const color = roleColors[i][prop];
+            const topPct = i / N;
+            const bottomPct = (i + 1) / N;
+            
+            // 头尾颜色不需要羽化，中间接缝处拉开 fadeRatio 距离让浏览器自动形成平滑渐变交叉
+            let startStop = topPct + (i === 0 ? 0 : fadeRatio);
+            let endStop = bottomPct - (i === N - 1 ? 0 : fadeRatio);
+            
+            grad.addColorStop(Math.max(0, Math.min(1, startStop)), color);
+            grad.addColorStop(Math.max(0, Math.min(1, endStop)), color);
+        }
+        return grad;
+    };
+
+    // 核心绘制
     const drawLineCore = (dcx, line, x, y, alignRight) => {
         if (!line || !line.chars) return;
 
@@ -154,33 +175,22 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const labelFs = Math.round(fs * labelScale);
                     const offsetY = profile.imageOffsetY || 0;
 
-                    let labelItem = { type: 'label', profile, rk, fs: labelFs, offsetY, w: 0 };
-
                     if (profile.imageMode && profile.image) {
-                        labelItem.isImage = true;
                         let img = window._labelImgCache[profile.image];
-                        labelItem.img = img;
-
                         const marginL = profile.labelMarginLeft || 0;
-                        const marginR = (profile.labelMarginRight || 0);
-                        
+                        const marginR = profile.labelMarginRight || 0;
                         let imgW = labelFs; 
                         if (img && img.complete && img.naturalWidth > 0) {
                             imgW = labelFs * (img.naturalWidth / img.naturalHeight);
                         }
-                        labelItem.marginL = marginL;
-                        labelItem.marginR = marginR;
-                        labelItem.imgW = imgW;
-                        labelItem.w = marginL + imgW + marginR;  // pure content width (gap added in layout)
-                        layoutItems.push(labelItem);
+                        layoutItems.push({ type: 'label', isImage: true, profile, rk, fs: labelFs, offsetY, w: marginL + imgW + marginR, marginL, imgW, img });
                     } else {
                         const labelText = profile.displayName || rk;
                         const labelFw = config.fontBold ? 'bold ' : '';
-                        // 每个字独立为 layout item，通过统一 gap 获得和歌词一致的字间距
                         const labelChars = [...labelText];
                         for (const ch of labelChars) {
                             const chW = measureTotalWidth(ch, labelFs, ff, 0, labelFw.trim() || 'normal');
-                            layoutItems.push({ type: 'label', isImage: false, profile, rk, fs: labelFs, offsetY, w: chW, text: ch, textW: chW });
+                            layoutItems.push({ type: 'label', isImage: false, profile, rk, fs: labelFs, offsetY, w: chW, text: ch });
                         }
                     }
                 }
@@ -218,6 +228,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             }
         }
 
+        // 常量羽化像素 (值越小分层边界越硬)
+        const seamFadePx = 0;
+
         for (const item of layoutItems) {
             if (item.type === 'label') {
                 if (item.isImage) {
@@ -252,13 +265,15 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const rChars = item.rubyChars;
                     const rRoleColors = getRoleColors(item.chars[0], config);
                     
-                    const rN = rRoleColors.length;
                     const ry = y - fs * 1.045 - config.rubyOffset;
-                    
-                    // 【修正：对齐 CJK 字符实际字框（Em-box）】
-                    // 汉字在基线上的分布大概是 -0.88 到 +0.12，总高约为 1.0em
                     const rTextTop = ry - rfs * 0.88;
                     const rBoxHeight = rfs * 1.0;
+
+                    // 获取注音层的独立羽化渐变色 (替代了原本繁琐切片循环)
+                    const rgStrokeB = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'strokeBefore', seamFadePx);
+                    const rgColorB  = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'colorBefore', seamFadePx);
+                    const rgStrokeA = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'strokeAfter', seamFadePx);
+                    const rgColorA  = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'colorAfter', seamFadePx);
 
                     if (rChars && rChars.length > 1) {
                         const rfwStr = config.rubyBold ? 'bold' : 'normal';
@@ -290,28 +305,16 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 const chEnd = rcStart + rcSpan * (si + 1) / subChars.length;
                                 const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
 
-                                for (let rni = 0; rni < rN; rni++) {
-                                    // 严格根据 1.0 倍 Em-box 切割，头部和尾部稍微扩展包住描边
-                                    let rSegTop = rTextTop + (rni / rN) * rBoxHeight;
-                                    let rSegBottom = rTextTop + ((rni + 1) / rN) * rBoxHeight;
-                                    if (rni === 0) rSegTop -= (rlw + rfs * 0.5);
-                                    if (rni === rN - 1) rSegBottom += (rlw + rfs * 0.5);
-                                    const rCurrentSegH = rSegBottom - rSegTop;
+                                drawShadowStrokeText(dcx, ch, rxCursor, ry, rgStrokeB, rlw);
+                                dcx.fillStyle = rgColorB; dcx.fillText(ch, rxCursor, ry);
 
-                                    const rcColor = rRoleColors[rni];
-                                    dcx.save(); dcx.beginPath();
-                                    dcx.rect(rxCursor - rfs, rSegTop, rfs * 3, rCurrentSegH);
-                                    dcx.clip();
-                                    drawShadowStrokeText(dcx, ch, rxCursor, ry, rcColor.strokeBefore, rlw);
-                                    dcx.fillStyle = rcColor.colorBefore; dcx.fillText(ch, rxCursor, ry);
-                                    dcx.save(); dcx.beginPath();
-                                    dcx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
-                                    dcx.clip();
-                                    drawShadowStrokeText(dcx, ch, rxCursor, ry, rcColor.strokeAfter, rlw);
-                                    dcx.fillStyle = rcColor.colorAfter; dcx.fillText(ch, rxCursor, ry);
-                                    dcx.restore();
-                                    dcx.restore();
-                                }
+                                dcx.save(); dcx.beginPath();
+                                dcx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
+                                dcx.clip();
+                                drawShadowStrokeText(dcx, ch, rxCursor, ry, rgStrokeA, rlw);
+                                dcx.fillStyle = rgColorA; dcx.fillText(ch, rxCursor, ry);
+                                dcx.restore();
+
                                 rxCursor += cw + rls;
                             }
                         }
@@ -330,29 +333,16 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             const chEnd = gStart + rSpan * (ri + 1) / rCharsArr.length;
                             const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
 
-                            for (let rni = 0; rni < rN; rni++) {
-                                // 严格根据 1.0 倍 Em-box 切割，头部和尾部稍微扩展包住描边
-                                let rSegTop = rTextTop + (rni / rN) * rBoxHeight;
-                                let rSegBottom = rTextTop + ((rni + 1) / rN) * rBoxHeight;
-                                if (rni === 0) rSegTop -= (rlw + rfs * 0.5);
-                                if (rni === rN - 1) rSegBottom += (rlw + rfs * 0.5);
+                            drawShadowStrokeText(dcx, ch, rxCursor, ry, rgStrokeB, rlw);
+                            dcx.fillStyle = rgColorB; dcx.fillText(ch, rxCursor, ry);
 
-                                const rCurrentSegH = rSegBottom - rSegTop;
+                            dcx.save(); dcx.beginPath();
+                            dcx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
+                            dcx.clip();
+                            drawShadowStrokeText(dcx, ch, rxCursor, ry, rgStrokeA, rlw);
+                            dcx.fillStyle = rgColorA; dcx.fillText(ch, rxCursor, ry);
+                            dcx.restore();
 
-                                const rcColor = rRoleColors[rni];
-                                dcx.save(); dcx.beginPath();
-                                dcx.rect(rxCursor - rfs, rSegTop, rfs * 3, rCurrentSegH);
-                                dcx.clip();
-                                drawShadowStrokeText(dcx, ch, rxCursor, ry, rcColor.strokeBefore, rlw);
-                                dcx.fillStyle = rcColor.colorBefore; dcx.fillText(ch, rxCursor, ry);
-                                dcx.save(); dcx.beginPath();
-                                dcx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
-                                dcx.clip();
-                                drawShadowStrokeText(dcx, ch, rxCursor, ry, rcColor.strokeAfter, rlw);
-                                dcx.fillStyle = rcColor.colorAfter; dcx.fillText(ch, rxCursor, ry);
-                                dcx.restore();
-                                dcx.restore();
-                            }
                             rxCursor += cw + rls;
                         }
                     }
@@ -360,6 +350,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
 
                 dcx.font = font;
                 applyCanvasTextMode(dcx);
+                
                 for (let ci = 0; ci < item.chars.length; ci++) {
                     const c = item.chars[ci];
                     let pInfo;
@@ -371,43 +362,29 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     }
 
                     const roleColors = getRoleColors(c, config);
-                    const N = roleColors.length;
-                    
-                    // 【修正：对齐 CJK 字符实际字面框（Em-box）中心】
-                    // 放弃 line-height 带来的偏下影响，采用纯 CJK 的 1.0em 框
                     const textTop = y - fs * 0.88;
                     const boxHeight = fs * 1.0;
-                    
-                    for (let ri = 0; ri < N; ri++) {
-                        let segTop = textTop + (ri / N) * boxHeight;
-                        let segBottom = textTop + ((ri + 1) / N) * boxHeight;
-                        // 保护最外层的描边不被横向一切刀切平
-                        if (ri === 0) segTop -= (sw + fs * 0.5);
-                        if (ri === N - 1) segBottom += (sw + fs * 0.5);
-                        const currentSegH = segBottom - segTop;
 
-                        const rcColor = roleColors[ri];
-                        dcx.save(); dcx.beginPath();
-                        dcx.rect(c.x - fs, segTop, c.w + fs * 2, currentSegH);
-                        dcx.clip();
+                    // 获取主字层的独立羽化渐变色 (不再有垂直切分代码，性能和画面绝赞提升)
+                    const gStrokeB = buildRoleGradient(dcx, textTop, textTop + boxHeight, roleColors, 'strokeBefore', seamFadePx);
+                    const gColorB  = buildRoleGradient(dcx, textTop, textTop + boxHeight, roleColors, 'colorBefore', seamFadePx);
+                    const gStrokeA = buildRoleGradient(dcx, textTop, textTop + boxHeight, roleColors, 'strokeAfter', seamFadePx);
+                    const gColorA  = buildRoleGradient(dcx, textTop, textTop + boxHeight, roleColors, 'colorAfter', seamFadePx);
 
-                        drawShadowStrokeText(dcx, c.text, c.x, y, rcColor.strokeBefore, sw);
-                        dcx.fillStyle = rcColor.colorBefore; dcx.fillText(c.text, c.x, y);
+                    drawShadowStrokeText(dcx, c.text, c.x, y, gStrokeB, sw);
+                    dcx.fillStyle = gColorB; dcx.fillText(c.text, c.x, y);
 
-                        dcx.save(); dcx.beginPath();
-                        dcx.rect(c.x - fs, y - fs * 2.5, (fs - pInfo.pad) + (pInfo.pct / 100) * pInfo.total, fs * 4);
-                        dcx.clip();
-                        drawShadowStrokeText(dcx, c.text, c.x, y, rcColor.strokeAfter, sw);
-                        dcx.fillStyle = rcColor.colorAfter; dcx.fillText(c.text, c.x, y);
-                        dcx.restore();
-                        dcx.restore();
-                    }
+                    dcx.save(); dcx.beginPath();
+                    dcx.rect(c.x - fs, y - fs * 2.5, (fs - pInfo.pad) + (pInfo.pct / 100) * pInfo.total, fs * 4);
+                    dcx.clip();
+                    drawShadowStrokeText(dcx, c.text, c.x, y, gStrokeA, sw);
+                    dcx.fillStyle = gColorA; dcx.fillText(c.text, c.x, y);
+                    dcx.restore();
                 }
             }
         }
     };
 
-    // 离屏 canvas（淡入淡出合成用）
     let _offCanvas = null, _offCtx = null;
 
     const drawLine = (line, x, y, alignRight) => {
