@@ -140,7 +140,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
     const drawLineCore = (dcx, line, x, y, alignRight) => {
         if (!line || !line.chars) return;
 
-        drawIndicator(dcx, line, x, y - Math.round(config.fontSize * 0.9));
+        drawIndicator(dcx, line, x, y - Math.round(config.fontSize * 0.9) - 5);
 
         const fs = config.fontSize, ls = config.letterSpacing, ff = config.fontFamily;
         const fw = config.fontBold ? 'bold ' : '';
