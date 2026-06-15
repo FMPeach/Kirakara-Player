@@ -202,7 +202,7 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(rc.char, fs, config.fontFamily, rc.char.length > 1 ? (config.rubyLetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const gLeft = ink.left || 0, gRight = ink.right || emW;
+        const gLeft = ink.left || 0, gRight = rc.char.length > 1 ? emW : (ink.right || emW);
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
         const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
@@ -224,7 +224,7 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(g.ruby, fs, config.fontFamily, (config.rubyLetterSpacing || 0), fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const gL = ink.left || 0, gR = ink.right || emW;
+        const gL = ink.left || 0, gR = g.ruby.length > 1 ? emW : (ink.right || emW);
         const pL = -gL, pR = gR;
         const oL = pad + pL, oR = pad + pR;
         const sL = oL - pad - 1, sR = oR + pad + 1;
