@@ -268,10 +268,11 @@ function parseLyrics(lrcRaw, entryBuf, config) {
     // 段落检测
     const EXIT_BUF = 2.0;
     const ENTRY_BUF = 2.0;
+    const paraEntryBuf = config.indicatorEnabled ? entryBuf : ENTRY_BUF;
     let paraIdx = 0, lineInPara = 0;
     let paraStartTime = lyrics.length > 0 ? lyrics[0].startTime : 0;
     for (let i = 0; i < lyrics.length; i++) {
-        if (i > 0 && lyrics[i].startTime - lyrics[i - 1].endTime > ENTRY_BUF + EXIT_BUF) {
+        if (i > 0 && lyrics[i].startTime - lyrics[i - 1].endTime > paraEntryBuf + EXIT_BUF) {
             paraIdx++; lineInPara = 0; paraStartTime = lyrics[i].startTime;
         }
         lyrics[i].paragraph = paraIdx;
