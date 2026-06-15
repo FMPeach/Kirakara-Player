@@ -40,8 +40,9 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
-            const roleTop = cjTopPct + i * cjRange / N;
-            const roleBot = cjTopPct + (i + 1) * cjRange / N;
+            // 对齐 Canvas 渐变中心偏移: Canvas 位置 p 对应字框 0.12+p
+            const roleTop = cjTopPct + cjRange * (0.04 + i / N);
+            const roleBot = cjTopPct + cjRange * (0.04 + (i + 1) / N);
             
             let roleMask;
             if (i === 0) {
@@ -111,8 +112,8 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
-            const roleTop = cjTopPct + i * cjRange / N;
-            const roleBot = cjTopPct + (i + 1) * cjRange / N;
+            const roleTop = cjTopPct + cjRange * (0.04 + i / N);
+            const roleBot = cjTopPct + cjRange * (0.04 + (i + 1) / N);
             
             let roleMask;
             if (i === 0) {
