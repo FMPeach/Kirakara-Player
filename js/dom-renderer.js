@@ -235,11 +235,9 @@ function LyricLine({ line, config, currentTime }) {
     // 主字墨迹走字
     const getProgress = (c) => {
         const rawPct = currentTime < c.startTime ? 0 : currentTime >= c.endTime ? 100 : ((currentTime - c.startTime) / (c.endTime - c.startTime)) * 100;
-        const isRuby = !!c.ruby;
-        const pad = isRuby ? (config.rubyStrokeWidth || Math.max(1, Math.round(config.rubySize * 0.1))) : (config.strokeWidth || Math.round(config.fontSize * 0.12));
-        const fs = isRuby ? config.rubySize : config.fontSize;
-        const fwIsBold = isRuby ? config.rubyBold : config.fontBold;
-        const fw = fwIsBold ? 'bold ' : '';
+        const pad = config.strokeWidth || Math.round(config.fontSize * 0.12);
+        const fs = config.fontSize;
+        const fw = config.fontBold ? 'bold ' : '';
         const fontStr = `${fw}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(c.text, fontStr);
         const domW = measureTotalWidth(c.text, fs, config.fontFamily, 0, fw.trim() || 'normal');
@@ -275,11 +273,9 @@ function LyricLine({ line, config, currentTime }) {
         const G = ((segIdx + segProgress) / N) * K * 100;
         const ki = g.chars.indexOf(c);
         const rawPct = Math.max(0, Math.min(100, G - ki * 100));
-        const isRuby = !!c.ruby;
-        const pad = isRuby ? (config.rubyStrokeWidth || Math.max(1, Math.round(config.rubySize * 0.1))) : (config.strokeWidth || Math.round(config.fontSize * 0.12));
-        const fs = isRuby ? config.rubySize : config.fontSize;
-        const fwIsBold = isRuby ? config.rubyBold : config.fontBold;
-        const fw = fwIsBold ? 'bold ' : '';
+        const pad = config.strokeWidth || Math.round(config.fontSize * 0.12);
+        const fs = config.fontSize;
+        const fw = config.fontBold ? 'bold ' : '';
         const fontStr = `${fw}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(c.text, fontStr);
         const domW = measureTotalWidth(c.text, fs, config.fontFamily, 0, fw.trim() || 'normal');
