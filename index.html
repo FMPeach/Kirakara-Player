@@ -213,7 +213,7 @@
                                             setAudioUrl(null);setVideoUrl(null);
                                         }}>✕</button>
                                     </div>
-                                    <textarea className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="@Ruby + 行内注音 混合格式..." />
+                                    <textarea className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="@Ruby 或 春日向け 格式...&#13;&#10;歌词内使用【角色】以解析角色..." />
                                     <div className="flex items-center gap-2">
                                         <input ref={lrcFileInputRef} type="file" accept=".lrc,.txt" className="hidden" onChange={e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>setLrcRaw(r.result||'');r.readAsText(f);}}/>
                                         <button className="text-[10px] text-indigo-400 hover:text-indigo-300 border border-zinc-700 rounded px-2 py-0.5" onClick={()=>lrcFileInputRef.current?.click()}>📄 载入 LRC 文件</button>

@@ -1,4 +1,4 @@
-// ==================== LRC 歌词解析（@Ruby + 行内注音双模式） ====================
+// ==================== LRC 歌词解析（@Ruby + 行内注音） ====================
 // 输入: lrcRaw 文本, entryBuf, config
 // 输出: lyrics[] 结构化数组
 
@@ -14,29 +14,9 @@ function parseTimeToSeconds(tag) {
     return 0;
 }
 
-function parseRubyInline(text) {
-    if (!text) return [];
-    const result = [];
-    const rubyPattern = /\{([^|]+)\|([^}]*)\}/g;
-    let lastIndex = 0;
-    let match;
-    while ((match = rubyPattern.exec(text)) !== null) {
-        const before = text.slice(lastIndex, match.index);
-        if (before) { for (const ch of before) result.push({ text: ch, ruby: null }); }
-        const baseText = match[1] || '';
-        const rubyText = match[2] || null;
-        result.push({ text: baseText, ruby: rubyText });
-        lastIndex = match.index + match[0].length;
-    }
-    const after = text.slice(lastIndex);
-    if (after) { for (const ch of after) result.push({ text: ch, ruby: null }); }
-    return result;
-}
-
 function parseLyrics(lrcRaw, entryBuf, config) {
     if (!lrcRaw.trim()) { return []; }
     const lines = lrcRaw.split('\n').map(l => l.trim()).filter(l => l);
-    const timeRegex = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
     const rubyTimeRegex = /\[(\d+):(\d+)[:\.](\d+)\]/g;
 
     // ---- 第一遍：解析 @Ruby 标签 ----
@@ -109,120 +89,166 @@ function parseLyrics(lrcRaw, entryBuf, config) {
         return null;
     }
 
-    // ---- 第二遍：去角色标签后统一解析走字，再映射角色回每个字 ----
+    // ---- 第二遍：构建 AST Token 流并转化为歌词行 ----
     const lyrics = [];
     let inheritedRole = null;
+    
     lines.forEach(line => {
         try {
             if (/^@ruby/i.test(line)) return;
-            timeRegex.lastIndex = 0;
-            if (!timeRegex.test(line)) return;
+            // 判断是否包含时间戳，否则直接跳过（非歌词行）
+            if (!/\[\d+:\d+(?:[:\.]\d+)?\]/.test(line)) return;
 
-            // ---- 1. 构建"每个文字→角色"映射（走原行，跳过【】和时间标签） ----
-            const textCharRoles = [];
-            const specials = [];
-            const roleRegex2 = /【([^】]+)】/g;
+            const tokens = [];
+            let curExplicit = false;
+            let currentRole = inheritedRole; // 从上一行继承
+            let currentTimeTag = null; // 当前上下文游标时间
+
+            // 解析引擎 Regex:
+            const lexer = /(【[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|([\s\S])/g;
             let m;
-            while ((m = roleRegex2.exec(line)) !== null) {
-                specials.push({ start: m.index, end: m.index + m[0].length, type: 'role',
-                    role: m[1].trim().split('+').map(r => r.trim()).filter(Boolean) });
-            }
-            const timeRegex2 = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
-            while ((m = timeRegex2.exec(line)) !== null) {
-                specials.push({ start: m.index, end: m.index + m[0].length, type: 'time' });
-            }
-            specials.sort((a, b) => a.start - b.start);
+            while ((m = lexer.exec(line)) !== null) {
+                if (m[1]) {
+                    // 1. 角色标签
+                    currentRole = m[1].replace(/[【】]/g, '').split('+').map(r => r.trim()).filter(Boolean);
+                    curExplicit = true;
+                } else if (m[2]) {
+                    // 2. 时间标签
+                    currentTimeTag = parseTimeToSeconds(m[2]);
+                    tokens.push({ type: 'time', time: currentTimeTag });
+                } else if (m[3]) {
+                    // 3. 行内注音
+                    const rawKanji = m[4];
+                    const rawKana = m[5];
 
-            let curRole = null, curExplicit = false, pos = 0;
-            for (const s of specials) {
-                for (let j = pos; j < s.start; j++) {
-                    textCharRoles.push({ char: line[j], role: curRole, roleExplicit: curExplicit });
+                    // 解析假名时轴：按时间戳切分
+                    const kanaTimeRegex = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
+                    let lastKIdx = 0, km;
+                    const rubyChars = [];
+                    let plainKana = '';
+                    let kanaHasTimestamps = false;
+                    let kBaseTime = null;
+                    let kCurrentTime = currentTimeTag || 0;
+
+                    while ((km = kanaTimeRegex.exec(rawKana)) !== null) {
+                        kanaHasTimestamps = true;
+                        const ch = rawKana.slice(lastKIdx, km.index);
+                        if (ch) {
+                            plainKana += ch;
+                            if (kBaseTime === null) kBaseTime = kCurrentTime;
+                            rubyChars.push({ char: ch, offsetSec: Math.max(0, kCurrentTime - kBaseTime) });
+                        }
+                        kCurrentTime = parseTimeToSeconds(km[0]);
+                        if (kBaseTime === null) kBaseTime = kCurrentTime;
+                        lastKIdx = km.index + km[0].length;
+                    }
+                    const kanaRemaining = rawKana.slice(lastKIdx);
+                    if (kanaRemaining) {
+                        plainKana += kanaRemaining;
+                        if (kBaseTime === null) kBaseTime = kCurrentTime;
+                        rubyChars.push({ char: kanaRemaining, offsetSec: Math.max(0, kCurrentTime - kBaseTime) });
+                    }
+
+                    // 仅注音自带时间戳时才注入绝对起点（春日向），否则融入当前上下文字段
+                    if (kanaHasTimestamps && kBaseTime !== null) {
+                        tokens.push({ type: 'time', time: kBaseTime });
+                        currentTimeTag = kBaseTime;
+                    }
+
+                    // 统一逐字解析汉字
+                    const kanjiLexer = /(\[\d+:\d+(?:[:\.]\d+)?\])|([\s\S])/g;
+                    let jm;
+                    const kanjiTokens = [];
+                    let charCount = 0;
+
+                    while ((jm = kanjiLexer.exec(rawKanji)) !== null) {
+                        if (jm[1]) {
+                        } else if (jm[2]) {
+                            kanjiTokens.push({
+                                type: 'char', text: jm[2],
+                                role: currentRole, roleExplicit: curExplicit
+                            });
+                            curExplicit = false;
+                            charCount++;
+                        }
+                    }
+
+                    // 注音数据挂载到汉字组首个字符
+                    let firstFound = false;
+                    for (const kt of kanjiTokens) {
+                        if (kt.type === 'char' && !firstFound) {
+                            kt.ruby = plainKana;
+                            kt.rubySpan = charCount;
+                            kt.rubyChars = rubyChars.length > 1 ? rubyChars : null;
+                            firstFound = true;
+                        }
+                        tokens.push(kt);
+                    }
+                    
+                } else if (m[6]) {
+                    // 4. 普通单字符（含空格）
+                    tokens.push({ type: 'char', text: m[6], role: currentRole, roleExplicit: curExplicit });
                     curExplicit = false;
                 }
-                if (s.type === 'role') { curRole = s.role; curExplicit = true; }
-                pos = s.end;
             }
-            for (let j = pos; j < line.length; j++) {
-                textCharRoles.push({ char: line[j], role: curRole, roleExplicit: curExplicit });
-                curExplicit = false;
-            }
-
-            // 跨行角色继承：若本行首字无角色，沿用上一行的角色
-            if (textCharRoles.length > 0 && textCharRoles[0].role === null && inheritedRole !== null) {
-                for (const tcr of textCharRoles) {
-                    if (tcr.role === null) tcr.role = inheritedRole;
+            
+            // 更新 inheritedRole 供下一行使用
+            for (let i = tokens.length - 1; i >= 0; i--) {
+                if (tokens[i].type === 'char' && tokens[i].role !== null) {
+                    inheritedRole = tokens[i].role;
+                    break;
                 }
             }
-            // 更新继承角色：用本行末字的角色
-            if (textCharRoles.length > 0) {
-                const lastRole = textCharRoles[textCharRoles.length - 1].role;
-                if (lastRole !== null) inheritedRole = lastRole;
+
+            // ---- 提取连续时轴块（完美支持 [Tag][Tag] 空隙停顿） ----
+            const segments = [];
+            let segStart = null;
+            let segChars = [];
+            
+            for (let i = 0; i < tokens.length; i++) {
+                const t = tokens[i];
+                if (t.type === 'time') {
+                    if (segChars.length > 0) {
+                        // 兜底：如果行首文字前面没有时间标签，自动向前提 0.15s
+                        if (segStart === null) segStart = Math.max(0, t.time - 0.15);
+                        segments.push({ start: segStart, end: t.time, chars: segChars });
+                    }
+                    // 游标直接推进到新时间（中间无字符的话就天然形成了物理停顿区）
+                    segStart = t.time;
+                    segChars = [];
+                } else if (t.type === 'char') {
+                    segChars.push(t);
+                }
             }
-
-            // ---- 2. 去掉角色标签后用原始逻辑解析走字 ----
-            const cleanLine = line.replace(/【[^】]+】/g, '');
-            const tags = cleanLine.match(timeRegex);
-            if (!tags) return;
-            const rawSegments = cleanLine.split(timeRegex);
-            if (rawSegments.every(s => !s)) return;
-
+            // 处理行尾的最后一段文字（等待被 tailAuto 延长）
+            if (segChars.length > 0) {
+                if (segStart === null) segStart = 0;
+                segments.push({ start: segStart, end: null, chars: segChars });
+            }
+            
+            // ---- 把时轴块展开为平铺字符（计算绝对走字区间） ----
             const allChars = [];
-            let hasNextTag = true;
-            let tagIdx = 0;
-            let started = false;
-            // 行首文字无前导时间戳时，先用合成时间，不消耗 tags[0]
-            const hasLeadingText = rawSegments[0] && rawSegments[0].trim();
-            if (hasLeadingText && tags.length > 0) {
-                const firstTagTime = parseTimeToSeconds(tags[0]);
-                const tokens = parseRubyInline(rawSegments[0]);
-                const segStart = Math.max(0, firstTagTime - 0.15);
-                const segEnd = firstTagTime;
-                const tokenCount = tokens.length;
-                tokens.forEach((token, j) => {
-                    const tStart = segStart + (segEnd - segStart) * (j / tokenCount);
-                    const tEnd = segStart + (segEnd - segStart) * ((j + 1) / tokenCount);
+            segments.forEach((seg) => {
+                const end = seg.end !== null ? seg.end : seg.start + 0.5;
+                const count = seg.chars.length;
+                seg.chars.forEach((c, j) => {
                     allChars.push({
-                        text: token.text, ruby: token.ruby || null,
-                        rubySpan: token.ruby ? 1 : 0,
-                        startTime: tStart, endTime: tEnd,
-                        roles: null, roleExplicit: false,
-                    });
-                });
-                started = true;
-            }
-            rawSegments.forEach((seg) => {
-                if (!seg) { if (started) tagIdx++; return; }
-                // 跳过已在上面处理过的行首文字
-                if (hasLeadingText && seg === rawSegments[0]) return;
-                started = true;
-                const tokens = parseRubyInline(seg);
-                const segStart = parseTimeToSeconds(tags[tagIdx]);
-                hasNextTag = !!tags[tagIdx + 1];
-                const segEnd = hasNextTag ? parseTimeToSeconds(tags[tagIdx + 1]) : segStart + 0.5;
-                tagIdx++;
-                const tokenCount = tokens.length;
-                tokens.forEach((token, j) => {
-                    const tStart = segStart + (segEnd - segStart) * (j / tokenCount);
-                    const tEnd = segStart + (segEnd - segStart) * ((j + 1) / tokenCount);
-                    allChars.push({
-                        text: token.text, ruby: token.ruby || null,
-                        rubySpan: token.ruby ? 1 : 0,
-                        startTime: tStart, endTime: tEnd,
-                        roles: null, roleExplicit: false,
+                        text: c.text,
+                        ruby: c.ruby || null,
+                        rubySpan: c.rubySpan || 0,
+                        rubyChars: c.rubyChars || null,
+                        startTime: seg.start + (end - seg.start) * (j / count), // 平分本段时间
+                        endTime: seg.start + (end - seg.start) * ((j + 1) / count),
+                        roles: c.role,
+                        roleExplicit: c.roleExplicit || false
                     });
                 });
             });
 
-            // ---- 3. 将角色映射回每个字 ----
-            for (let ci = 0; ci < allChars.length && ci < textCharRoles.length; ci++) {
-                allChars[ci].roles = textCharRoles[ci].role;
-                allChars[ci].roleExplicit = textCharRoles[ci].roleExplicit;
-            }
-
             if (allChars.length > 0) {
-                // 多字词 @ruby 匹配
+                // ---- 后处理：挂载外置的全局 @Ruby 字典 ----
                 for (let ci = 0; ci < allChars.length; ci++) {
-                    if (allChars[ci].ruby) continue;
+                    if (allChars[ci].ruby) continue; // 行内已标注，跳过
                     let combined = allChars[ci].text;
                     for (let len = 2; len <= 16 && ci + len <= allChars.length; len++) {
                         let blocked = false;
@@ -239,11 +265,15 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                     if (r) { allChars[ci].ruby = r.reading; allChars[ci].rubyChars = r.rubyChars; allChars[ci].rubySpan = 1; }
                 }
 
+                // 判断这行末尾是否是一个时间戳（决定是否需要自动拉长尾部拖音）
+                const lastToken = tokens[tokens.length - 1];
+                const lineEndsWithTag = lastToken && lastToken.type === 'time';
+
                 lyrics.push({
                     startTime: allChars[0].startTime,
                     endTime: allChars[allChars.length - 1].endTime,
                     chars: allChars,
-                    tailAuto: !hasNextTag,
+                    tailAuto: !lineEndsWithTag,
                 });
             }
         } catch (e) {
