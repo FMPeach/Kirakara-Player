@@ -3,6 +3,9 @@
 
 const h = React.createElement;
 
+// Chromium 需要 +0.5px 防 subpixel 渗出，Firefox 反会因此遮罩不足
+const CLIP_OVERPULL = /Firefox/i.test(navigator.userAgent) ? '-0.5px' : '0.5px';
+
 // ---- CharMask: 逐字 clip-path 遮罩（支持 N 角色垂直等分分层） ----
 function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
     colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
@@ -58,7 +61,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text)));
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text)));
         }
         return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } }, ...children);
     }
@@ -66,7 +69,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text));
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text));
 }
 
 // ---- RubyMask: 注音逐字 clip-path（支持 N 角色垂直等分分层） ----
@@ -129,7 +132,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text)));
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text)));
         }
         return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } }, ...children);
     }
@@ -137,7 +140,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + 0.5px) -50% -${safePad}px)` } }, text));
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text));
 }
 
 
