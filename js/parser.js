@@ -14,8 +14,40 @@ function parseTimeToSeconds(tag) {
     return 0;
 }
 
+// 解析单组注音时轴 → { plainText, rubyChars, hasTimestamps, baseTime }
+function parseKanaTimeAxis(rawKana, currentTime) {
+    const kanaTimeRegex = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
+    let lastIdx = 0, km;
+    const rubyChars = [];
+    let plainText = '';
+    let hasTimestamps = false;
+    let baseTime = null;
+    let kCurrentTime = currentTime || 0;
+
+    while ((km = kanaTimeRegex.exec(rawKana)) !== null) {
+        hasTimestamps = true;
+        const ch = rawKana.slice(lastIdx, km.index);
+        if (ch) {
+            plainText += ch;
+            if (baseTime === null) baseTime = kCurrentTime;
+            rubyChars.push({ char: ch, offsetSec: Math.max(0, kCurrentTime - baseTime) });
+        }
+        kCurrentTime = parseTimeToSeconds(km[0]);
+        if (baseTime === null) baseTime = kCurrentTime;
+        lastIdx = km.index + km[0].length;
+    }
+    const remaining = rawKana.slice(lastIdx);
+    if (remaining) {
+        plainText += remaining;
+        if (baseTime === null) baseTime = kCurrentTime;
+        rubyChars.push({ char: remaining, offsetSec: Math.max(0, kCurrentTime - baseTime) });
+    }
+    return { plainText, rubyChars: rubyChars.length > 0 ? rubyChars : null, hasTimestamps, baseTime };
+}
+
 function parseLyrics(lrcRaw, entryBuf, config) {
     if (!lrcRaw.trim()) { return []; }
+    window._hasDualRuby = false;
     const lines = lrcRaw.split('\n').map(l => l.trim()).filter(l => l);
     const rubyTimeRegex = /\[(\d+):(\d+)[:\.](\d+)\]/g;
 
@@ -117,42 +149,24 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                     currentTimeTag = parseTimeToSeconds(m[2]);
                     tokens.push({ type: 'time', time: currentTimeTag });
                 } else if (m[3]) {
-                    // 3. 行内注音
+                    // 3. 行内注音 {漢字|注音1>注音2} 或 {漢字|注音}
                     const rawKanji = m[4];
                     const rawKana = m[5];
 
-                    // 解析假名时轴：按时间戳切分
-                    const kanaTimeRegex = /\[\d+:\d+(?:[:\.]\d+)?\]/g;
-                    let lastKIdx = 0, km;
-                    const rubyChars = [];
-                    let plainKana = '';
-                    let kanaHasTimestamps = false;
-                    let kBaseTime = null;
-                    let kCurrentTime = currentTimeTag || 0;
+                    // 拆分注音1/2（> 分隔）
+                    const gtIdx = rawKana.indexOf('>');
+                    const rawKana1 = gtIdx >= 0 ? rawKana.slice(0, gtIdx) : rawKana;
+                    const rawKana2 = gtIdx >= 0 ? rawKana.slice(gtIdx + 1) : '';
+                    if (gtIdx >= 0) window._hasDualRuby = true;
 
-                    while ((km = kanaTimeRegex.exec(rawKana)) !== null) {
-                        kanaHasTimestamps = true;
-                        const ch = rawKana.slice(lastKIdx, km.index);
-                        if (ch) {
-                            plainKana += ch;
-                            if (kBaseTime === null) kBaseTime = kCurrentTime;
-                            rubyChars.push({ char: ch, offsetSec: Math.max(0, kCurrentTime - kBaseTime) });
-                        }
-                        kCurrentTime = parseTimeToSeconds(km[0]);
-                        if (kBaseTime === null) kBaseTime = kCurrentTime;
-                        lastKIdx = km.index + km[0].length;
-                    }
-                    const kanaRemaining = rawKana.slice(lastKIdx);
-                    if (kanaRemaining) {
-                        plainKana += kanaRemaining;
-                        if (kBaseTime === null) kBaseTime = kCurrentTime;
-                        rubyChars.push({ char: kanaRemaining, offsetSec: Math.max(0, kCurrentTime - kBaseTime) });
-                    }
+                    const ka1 = parseKanaTimeAxis(rawKana1, currentTimeTag || 0);
+                    const ka2 = gtIdx >= 0 ? parseKanaTimeAxis(rawKana2, currentTimeTag || 0) : null;
 
-                    // 仅注音自带时间戳时才注入绝对起点（春日向），否则融入当前上下文字段
-                    if (kanaHasTimestamps && kBaseTime !== null) {
-                        tokens.push({ type: 'time', time: kBaseTime });
-                        currentTimeTag = kBaseTime;
+                    // 注音1或注音2有时间戳时注入绝对起点（优先注音1）
+                    const timeKA = ka1.hasTimestamps ? ka1 : (ka2 && ka2.hasTimestamps ? ka2 : null);
+                    if (timeKA && timeKA.baseTime !== null) {
+                        tokens.push({ type: 'time', time: timeKA.baseTime });
+                        currentTimeTag = timeKA.baseTime;
                     }
 
                     // 统一逐字解析汉字
@@ -177,9 +191,18 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                     let firstFound = false;
                     for (const kt of kanjiTokens) {
                         if (kt.type === 'char' && !firstFound) {
-                            kt.ruby = plainKana;
-                            kt.rubySpan = charCount;
-                            kt.rubyChars = rubyChars.length > 1 ? rubyChars : null;
+                            // 【核心修复】：只要注音1或者注音2存在，都必须强制设定 rubySpan 避免连词被打碎
+                            if (ka1.plainText || (ka2 && ka2.plainText)) {
+                                kt.rubySpan = charCount;
+                            }
+                            if (ka1.plainText) { 
+                                kt.ruby = ka1.plainText; 
+                                kt.rubyChars = ka1.rubyChars && ka1.rubyChars.length > 1 ? ka1.rubyChars : null; 
+                            }
+                            if (ka2 && ka2.plainText) { 
+                                kt.ruby2 = ka2.plainText; 
+                                kt.ruby2Chars = ka2.rubyChars && ka2.rubyChars.length > 1 ? ka2.rubyChars : null; 
+                            }
                             firstFound = true;
                         }
                         tokens.push(kt);
@@ -237,6 +260,8 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                         ruby: c.ruby || null,
                         rubySpan: c.rubySpan || 0,
                         rubyChars: c.rubyChars || null,
+                        ruby2: c.ruby2 || null,
+                        ruby2Chars: c.ruby2Chars || null,
                         startTime: seg.start + (end - seg.start) * (j / count), // 平分本段时间
                         endTime: seg.start + (end - seg.start) * ((j + 1) / count),
                         roles: c.role,
@@ -248,11 +273,12 @@ function parseLyrics(lrcRaw, entryBuf, config) {
             if (allChars.length > 0) {
                 // ---- 后处理：挂载外置的全局 @Ruby 字典 ----
                 for (let ci = 0; ci < allChars.length; ci++) {
-                    if (allChars[ci].ruby) continue; // 行内已标注，跳过
+                    // 如果这个字已经被行内注音占据（无论注音1还是注音2），直接跳过！
+                    if (allChars[ci].rubySpan > 0) continue; 
                     let combined = allChars[ci].text;
                     for (let len = 2; len <= 16 && ci + len <= allChars.length; len++) {
                         let blocked = false;
-                        for (let k = 1; k < len; k++) { if (allChars[ci + k].ruby) { blocked = true; break; } }
+                        for (let k = 1; k < len; k++) { if (allChars[ci + k].rubySpan > 0) { blocked = true; break; } }
                         if (blocked) break;
                         combined += allChars[ci + len - 1].text;
                         const r = findRuby(combined, allChars[ci].startTime);
@@ -260,7 +286,7 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                     }
                 }
                 for (let ci = 0; ci < allChars.length; ci++) {
-                    if (allChars[ci].ruby) continue;
+                    if (allChars[ci].rubySpan > 0) continue;
                     const r = findRuby(allChars[ci].text, allChars[ci].startTime);
                     if (r) { allChars[ci].ruby = r.reading; allChars[ci].rubyChars = r.rubyChars; allChars[ci].rubySpan = 1; }
                 }

@@ -278,6 +278,23 @@
                                             <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={t==='float'?'0.1':'1'} onChange={e=>setConfig({...config,[k]:(t==='float'?parseFloat:parseInt)(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                         ))}
                                     </div>
+                                    {window._hasDualRuby && h('div', { className: 'space-y-1.5' },
+                                        h('span', { className: 'text-[9px] text-indigo-400 font-bold' }, '♪ 第二注音'),
+                                        h('div', { className: 'grid grid-cols-2 gap-2' },
+                                            h('label', { className: 'flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer' },
+                                                h('input', { type:'checkbox', checked: config.ruby2Bold, onChange: e=>setConfig({...config, ruby2Bold: e.target.checked}), className:'accent-indigo-500 w-3.5 h-3.5' }),
+                                                h('span', { className: 'text-[10px] text-zinc-300' }, '注音2加粗')
+                                            )
+                                        ),
+                                        h('div', { className: 'grid grid-cols-3 gap-2' },
+                                            ...[['注音2大小','ruby2Size',12,'int'],['注音2下推','ruby2Offset',0,'int'],['注音2字距','ruby2LetterSpacing',0,'float']].map(([l,k,fb,t])=>
+                                                h('div', { key: k },
+                                                    h('span', { className: 'text-[9px] text-zinc-500' }, l),
+                                                    h('input', { type:'number', value: config[k], step: t==='float'?'0.1':'1', onChange: e=>setConfig({...config, [k]: (t==='float'?parseFloat:parseInt)(e.target.value)||fb}), className:'w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700' })
+                                                )
+                                            )
+                                        )
+                                    )}
                                 </section>
 
                                 {/* 颜色描边 */}
@@ -287,6 +304,10 @@
                                         {[['描边粗细','strokeWidth',0],['注音描边','rubyStrokeWidth',0]].map(([l,k,fb])=>(
                                             <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>setConfig({...config,[k]:parseInt(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                         ))}
+                                        {window._hasDualRuby && h('div', null,
+                                            h('span', { className: 'text-[9px] text-zinc-500' }, '注音2描边'),
+                                            h('input', { type:'number', value: config.ruby2StrokeWidth, onChange: e=>setConfig({...config, ruby2StrokeWidth: parseInt(e.target.value)||0}), className:'w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700' })
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-4 gap-1.5">
                                         {[['走字前','colorBefore'],['走字后','colorAfter'],['描边前','strokeColorBefore'],['描边后','strokeColorAfter']].map(([l,k])=>(

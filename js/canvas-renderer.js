@@ -153,8 +153,8 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         const groups = [];
         for (let i = 0; i < line.chars.length;) {
             const c = line.chars[i], span = c.rubySpan || 0;
-            if (span > 1 && c.ruby) { groups.push({ ruby: c.ruby, rubyChars: c.rubyChars || null, chars: line.chars.slice(i, i + span) }); i += span; }
-            else { groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, chars: [c] }); i += 1; }
+            if (span > 1 && (c.ruby || c.ruby2)) { groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, ruby2: c.ruby2 || null, ruby2Chars: c.ruby2Chars || null, chars: line.chars.slice(i, i + span) }); i += span; }
+            else { groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, ruby2: c.ruby2 || null, ruby2Chars: c.ruby2Chars || null, chars: [c] }); i += 1; }
         }
 
         const layoutItems = [];
@@ -207,7 +207,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                 groupW += charW; 
                 if (ci < g.chars.length - 1) groupW += ls;
             }
-            layoutItems.push({ type: 'group', chars: layoutChars, ruby: g.ruby, rubyChars: g.rubyChars, w: groupW });
+            layoutItems.push({ type: 'group', chars: layoutChars, ruby: g.ruby, rubyChars: g.rubyChars, ruby2: g.ruby2, ruby2Chars: g.ruby2Chars, w: groupW });
         }
 
         // 注音避让布局 (Isolate + Avoidance)
@@ -365,6 +365,101 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     }
                 }
 
+                // 注音2（下方，罗马音等）
+                if (item.ruby2 && item.chars.length > 0) {
+                    const r2fs = config.ruby2Size, r2ls = config.ruby2LetterSpacing || 0;
+                    const r2lw = config.ruby2StrokeWidth || Math.max(1, Math.round(r2fs * 0.1));
+                    const r2fw = config.ruby2Bold ? 'bold ' : '';
+                    dcx.font = `${r2fw}${r2fs}px ${ff}`;
+                    applyCanvasTextMode(dcx);
+
+                    const gStart = item.chars[0].startTime;
+                    const gEnd = item.chars[item.chars.length - 1].endTime;
+                    const r2Chars = item.ruby2Chars;
+                    const r2RoleColors = getRoleColors(item.chars[0], config);
+
+                    const r2y = y + fs * 0.12 + config.ruby2Offset + r2fs * 0.88;
+                    const r2TextTop = r2y - r2fs * 0.88;
+                    const r2BoxHeight = r2fs * 1.0;
+
+                    const r2gStrokeB = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'strokeBefore', seamFadePx);
+                    const r2gColorB  = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'colorBefore', seamFadePx);
+                    const r2gStrokeA = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'strokeAfter', seamFadePx);
+                    const r2gColorA  = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'colorAfter', seamFadePx);
+
+                    if (r2Chars && r2Chars.length > 1) {
+                        const r2fwStr = config.ruby2Bold ? 'bold' : 'normal';
+                        const r2flatChars = [];
+                        for (const rc of r2Chars) {
+                            const chars = [...rc.char];
+                            for (const ch of chars) {
+                                r2flatChars.push({ char: ch, offsetSec: rc.offsetSec, width: measureTotalWidth(ch, r2fs, ff, 0, r2fwStr) });
+                            }
+                        }
+                        const r2TotalW = r2flatChars.reduce((s, fc) => s + fc.width, 0) + (r2flatChars.length - 1) * r2ls;
+                        let r2xCursor = groupCenterX - r2TotalW / 2;
+
+                        let r2flatIdx = 0;
+                        for (let ri = 0; ri < r2Chars.length; ri++) {
+                            const rc = r2Chars[ri];
+                            const rcStart = gStart + (rc.offsetSec || (gEnd - gStart) * ri / r2Chars.length);
+                            const rcEnd = (ri + 1 < r2Chars.length)
+                                ? gStart + (r2Chars[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / r2Chars.length)
+                                : gEnd;
+                            const rcSpan = rcEnd - rcStart;
+                            const subChars = [...rc.char];
+
+                            for (let si = 0; si < subChars.length; si++) {
+                                const ch = subChars[si];
+                                const cw = r2flatChars[r2flatIdx].width;
+                                r2flatIdx++;
+                                const chStart = rcStart + rcSpan * si / subChars.length;
+                                const chEnd = rcStart + rcSpan * (si + 1) / subChars.length;
+                                const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
+
+                                drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeB, r2lw);
+                                dcx.fillStyle = r2gColorB; dcx.fillText(ch, r2xCursor, r2y);
+
+                                dcx.save(); dcx.beginPath();
+                                dcx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
+                                dcx.clip();
+                                drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeA, r2lw);
+                                dcx.fillStyle = r2gColorA; dcx.fillText(ch, r2xCursor, r2y);
+                                dcx.restore();
+
+                                r2xCursor += cw + r2ls;
+                            }
+                        }
+                    } else {
+                        const r2CharsArr = [...item.ruby2];
+                        const r2fwStr2 = config.ruby2Bold ? 'bold' : 'normal';
+                        const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2));
+                        const r2TotalW = r2CharWidths.reduce((s, w) => s + w, 0) + (r2CharsArr.length - 1) * r2ls;
+                        let r2xCursor = groupCenterX - r2TotalW / 2;
+                        const r2Span = gEnd - gStart;
+
+                        for (let ri = 0; ri < r2CharsArr.length; ri++) {
+                            const ch = r2CharsArr[ri];
+                            const cw = r2CharWidths[ri];
+                            const chStart = gStart + r2Span * ri / r2CharsArr.length;
+                            const chEnd = gStart + r2Span * (ri + 1) / r2CharsArr.length;
+                            const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
+
+                            drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeB, r2lw);
+                            dcx.fillStyle = r2gColorB; dcx.fillText(ch, r2xCursor, r2y);
+
+                            dcx.save(); dcx.beginPath();
+                            dcx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
+                            dcx.clip();
+                            drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeA, r2lw);
+                            dcx.fillStyle = r2gColorA; dcx.fillText(ch, r2xCursor, r2y);
+                            dcx.restore();
+
+                            r2xCursor += cw + r2ls;
+                        }
+                    }
+                }
+
                 dcx.font = font;
                 applyCanvasTextMode(dcx);
                 
@@ -373,6 +468,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     let pInfo;
                     if (item.rubyChars && item.rubyChars.length > 1) {
                         const rawPct = calcGroupedProgress(item.chars, item.rubyChars, ci, time);
+                        pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config, rawPct);
+                    } else if (item.ruby2Chars && item.ruby2Chars.length > 1) {
+                        const rawPct = calcGroupedProgress(item.chars, item.ruby2Chars, ci, time);
                         pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config, rawPct);
                     } else {
                         pInfo = calcProgress(c.text, time, c.startTime, c.endTime, false, config);

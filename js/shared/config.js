@@ -4,6 +4,7 @@ const CONFIG_DEFAULTS = {
     fontSize: 64, letterSpacing: 9,
     fontFamily: "'Microsoft YaHei', sans-serif", fontBold: true,
     rubySize: 26, rubyOffset: 4, rubyLetterSpacing: 5, rubyBold: false, rubyStrokeWidth: 4,
+    ruby2Size: 20, ruby2Offset: 4, ruby2LetterSpacing: 4, ruby2Bold: false, ruby2StrokeWidth: 3,
     rubyIsolateEnabled: true,
     colorBefore: '#ffffff', colorAfter: '#a50000',
     strokeColorBefore: '#000000', strokeColorAfter: '#ffffff', strokeWidth: 5,

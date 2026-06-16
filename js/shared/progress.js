@@ -22,7 +22,7 @@ function calcProgress(text, time, startTime, endTime, isRuby, config, rawPctOver
     return { pct: startFrac + (rawPct / 100) * (endFrac - startFrac), total, pad, emW };
 }
 
-// 多音节注音分组 → 分段走字（匹配 DOM getGroupedCharProgress）
+// 多音节注音分组 → 分段走字（兼容注音1/2时序）
 function calcGroupedProgress(chars, rubyChars, charIndex, time) {
     const N = rubyChars.length;
     const K = chars.length;

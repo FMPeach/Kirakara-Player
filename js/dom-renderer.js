@@ -166,16 +166,16 @@ function LyricLine({ line, config, currentTime }) {
         fadeOpacity = Math.max(0, Math.min(1, opacityFromFade));
     }
 
-    // 分组（按 rubySpan）
+    // 分组（按 rubySpan，注音1/2 共用跨字）
     const groups = [];
     for (let i = 0; i < chars.length;) {
         const c = chars[i];
         const span = c.rubySpan || 0;
-        if (span > 1 && c.ruby) {
-            groups.push({ ruby: c.ruby, rubyChars: c.rubyChars || null, chars: chars.slice(i, i + span), key: i });
+        if (span > 1 && (c.ruby || c.ruby2)) {
+            groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, ruby2: c.ruby2 || null, ruby2Chars: c.ruby2Chars || null, chars: chars.slice(i, i + span), key: i });
             i += span;
         } else {
-            groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, chars: [c], key: i });
+            groups.push({ ruby: c.ruby || null, rubyChars: c.rubyChars || null, ruby2: c.ruby2 || null, ruby2Chars: c.ruby2Chars || null, chars: [c], key: i });
             i += 1;
         }
     }
@@ -236,6 +236,57 @@ function LyricLine({ line, config, currentTime }) {
         return sF + (rawPct / 100) * (eF - sF);
     };
 
+    // 注音2 逐字进度
+    const getRuby2CharProgress = (g, idx) => {
+        const rChars = g.ruby2Chars;
+        if (!rChars || rChars.length === 0 || idx >= rChars.length) return null;
+        const kanjiStart = g.chars[0].startTime;
+        const kanjiEnd = g.chars[g.chars.length - 1].endTime;
+        const rc = rChars[idx];
+        const charStart = kanjiStart + (rc.offsetSec || 0);
+        const charEnd = (idx < rChars.length - 1)
+            ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart)
+            : kanjiEnd;
+        if (currentTime < charStart) return 0;
+        if (currentTime >= charEnd) return 100;
+        const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
+        const pad = config.ruby2StrokeWidth || Math.max(1, Math.round(config.ruby2Size * 0.1));
+        const fs = config.ruby2Size;
+        const fwRuby = config.ruby2Bold ? 'bold ' : '';
+        const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
+        const ink = measureGlyphInk(rc.char, fontStr);
+        const domW = measureTotalWidth(rc.char, fs, config.fontFamily, rc.char.length > 1 ? (config.ruby2LetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
+        const emW = Math.max(ink.emWidth || fs, domW);
+        const total = emW + 2 * pad;
+        const gLeft = ink.left || 0, gRight = rc.char.length > 1 ? emW : (ink.right || emW);
+        const pixelL = -gLeft, pixelR = gRight;
+        const offsetL = pad + pixelL, offsetR = pad + pixelR;
+        const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
+        const startFrac = (strokeL / total) * 100, endFrac = (strokeR / total) * 100;
+        return startFrac + (rawPct / 100) * (endFrac - startFrac);
+    };
+
+    const getRuby2Progress = (g) => {
+        if (!g.ruby2 || g.chars.length === 0) return 0;
+        const t0 = g.chars[0].startTime, t1 = g.chars[g.chars.length - 1].endTime;
+        if (currentTime < t0) return 0;
+        if (currentTime >= t1) return 100;
+        const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
+        const pad = config.ruby2StrokeWidth || Math.max(1, Math.round(config.ruby2Size * 0.1));
+        const fs = config.ruby2Size, fwRuby = config.ruby2Bold ? 'bold ' : '';
+        const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
+        const ink = measureGlyphInk(g.ruby2, fontStr);
+        const domW = measureTotalWidth(g.ruby2, fs, config.fontFamily, (config.ruby2LetterSpacing || 0), fwRuby.trim() || 'normal');
+        const emW = Math.max(ink.emWidth || fs, domW);
+        const total = emW + 2 * pad;
+        const gL = ink.left || 0, gR = g.ruby2.length > 1 ? emW : (ink.right || emW);
+        const pL = -gL, pR = gR;
+        const oL = pad + pL, oR = pad + pR;
+        const sL = oL - pad - 1, sR = oR + pad + 1;
+        const sF = (sL / total) * 100, eF = (sR / total) * 100;
+        return sF + (rawPct / 100) * (eF - sF);
+    };
+
     // 主字墨迹走字
     const getProgress = (c) => {
         const rawPct = currentTime < c.startTime ? 0 : currentTime >= c.endTime ? 100 : ((currentTime - c.startTime) / (c.endTime - c.startTime)) * 100;
@@ -255,9 +306,9 @@ function LyricLine({ line, config, currentTime }) {
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 
-    // 多音节分组走字
+    // 多音节分组走字（兼容注音1和注音2的时序）
     const getGroupedCharProgress = (c, g) => {
-        const rChars = g.rubyChars;
+        const rChars = g.rubyChars || g.ruby2Chars;
         const N = rChars.length, K = g.chars.length;
         const groupStart = g.chars[0].startTime, groupEnd = g.chars[K - 1].endTime;
         const groupSpan = groupEnd - groupStart;
@@ -405,8 +456,9 @@ function LyricLine({ line, config, currentTime }) {
         }
 
         // 主字
+        const hasGroupTiming = (g.rubyChars && g.rubyChars.length > 1) || (g.ruby2Chars && g.ruby2Chars.length > 1);
         const charEls = g.chars.map((c, ci) => {
-            const progress = (g.rubyChars && g.rubyChars.length > 1) ? getGroupedCharProgress(c, g) : getProgress(c);
+            const progress = hasGroupTiming ? getGroupedCharProgress(c, g) : getProgress(c);
             const roles = c.roles;
             const profiles = config.characterProfiles || {};
             const cRoleColors = (roles && roles.length > 0) ? roles.map(rn => {
@@ -428,6 +480,31 @@ function LyricLine({ line, config, currentTime }) {
             });
         });
         groupChildren.push(h('div', { key: 'chars', className: 'flex items-end', style: { gap: `${ls}px` } }, ...charEls));
+
+        // 注音2（下方，罗马音等）
+        if (g.ruby2) {
+            const ruby2Els = [];
+            const r2Roles = g.chars[0]?.roles;
+            const r2Profiles = config.characterProfiles || {};
+            const r2RoleColors = (r2Roles && r2Roles.length > 0) ? r2Roles.map(rn => {
+                const rp = r2Profiles[rn] || {};
+                return { colorBefore: rp.colorBefore || config.colorBefore, colorAfter: rp.colorAfter || config.colorAfter, strokeColorBefore: rp.strokeColorBefore || config.strokeColorBefore, strokeColorAfter: rp.strokeColorAfter || config.strokeColorAfter };
+            }) : [{ colorBefore: config.colorBefore, colorAfter: config.colorAfter, strokeColorBefore: config.strokeColorBefore, strokeColorAfter: config.strokeColorAfter }];
+            const r2cb = r2RoleColors[0].colorBefore, r2ca = r2RoleColors[0].colorAfter;
+            const r2sb = r2RoleColors[0].strokeColorBefore, r2sa = r2RoleColors[0].strokeColorAfter;
+            const r2sw = config.ruby2StrokeWidth;
+            const r2IsDual = r2RoleColors.length >= 2;
+            if (g.ruby2Chars && g.ruby2Chars.length > 1) {
+                g.ruby2Chars.forEach((rc, ri) => {
+                    ruby2Els.push(h(RubyMask, { key: ri, text: rc.char, progress: getRuby2CharProgress(g, ri), fontSize: config.ruby2Size, letterSpacing: rc.char.length > 1 ? config.ruby2LetterSpacing : 0, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined }));
+                });
+            } else {
+                ruby2Els.push(h(RubyMask, { key: 'r2', text: g.ruby2, progress: getRuby2Progress(g), fontSize: config.ruby2Size, letterSpacing: config.ruby2LetterSpacing, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined }));
+            }
+            groupChildren.push(h('div', { key: 'ruby2', className: 'flex justify-center', style: { position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', paddingTop: `${config.ruby2Offset}px`, whiteSpace: 'nowrap' } },
+                h('span', { style: { display: 'inline-flex', gap: `${config.ruby2LetterSpacing}px` } }, ...ruby2Els)
+            ));
+        }
 
         const m = rubyMetrics[gi] || {};
         const isLastGroup = gi === groups.length - 1;
