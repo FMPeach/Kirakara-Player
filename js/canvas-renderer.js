@@ -1,7 +1,6 @@
 // ==================== Canvas 2D 歌词渲染引擎 ====================
 // 供导出流水线调用，不依赖 React
 
-// 直接挂载到 window，避开 Babel 浏览器热更新时的 const 冲突天坑
 window._labelImgCache = window._labelImgCache || {};
 
 function applyCanvasTextMode(ctx) {
@@ -9,14 +8,13 @@ function applyCanvasTextMode(ctx) {
     if (ctx.textRendering !== undefined) ctx.textRendering = 'optimizeSpeed';
 }
 
-// ---- 新增：全局图片预加载器 ----
 function _preloadCanvasImages(config) {
     if (!config || !config.characterProfiles) return;
     for (const key in config.characterProfiles) {
         const profile = config.characterProfiles[key];
         if (profile.imageMode && profile.image && !window._labelImgCache[profile.image]) {
             const img = new Image();
-            img.src = profile.image; // 触发浏览器底层静默下载
+            img.src = profile.image; 
             window._labelImgCache[profile.image] = img;
         }
     }
@@ -270,6 +268,13 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                 const groupEndW = item.chars[item.chars.length - 1].w;
                 const groupCenterX = (groupStartX + groupEndX + groupEndW) / 2;
 
+                const gStart = item.chars[0].startTime;
+                const gEnd = item.chars[item.chars.length - 1].endTime;
+                const rRoleColors = getRoleColors(item.chars[0], config);
+
+                // =====================================
+                // 注音1：顶部（原汁原味的逐字渲染模式）
+                // =====================================
                 if (item.ruby && item.chars.length > 0) {
                     const rfs = config.rubySize, rls = config.rubyLetterSpacing || 0;
                     const rlw = config.rubyStrokeWidth || Math.max(1, Math.round(rfs * 0.1));
@@ -277,11 +282,6 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     dcx.font = `${rfw}${rfs}px ${ff}`;
                     applyCanvasTextMode(dcx);
 
-                    const gStart = item.chars[0].startTime;
-                    const gEnd = item.chars[item.chars.length - 1].endTime;
-                    const rChars = item.rubyChars;
-                    const rRoleColors = getRoleColors(item.chars[0], config);
-                    
                     const ry = y - fs * 1.045 - config.rubyOffset;
                     const rTextTop = ry - rfs * 0.88;
                     const rBoxHeight = rfs * 1.0;
@@ -291,6 +291,8 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const rgColorB  = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'colorBefore', seamFadePx);
                     const rgStrokeA = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'strokeAfter', seamFadePx);
                     const rgColorA  = buildRoleGradient(dcx, rTextTop, rTextTop + rBoxHeight, rRoleColors, 'colorAfter', seamFadePx);
+
+                    const rChars = item.rubyChars;
 
                     if (rChars && rChars.length > 1) {
                         const rfwStr = config.rubyBold ? 'bold' : 'normal';
@@ -373,64 +375,92 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     dcx.font = `${r2fw}${r2fs}px ${ff}`;
                     applyCanvasTextMode(dcx);
 
-                    const gStart = item.chars[0].startTime;
-                    const gEnd = item.chars[item.chars.length - 1].endTime;
-                    const r2Chars = item.ruby2Chars;
-                    const r2RoleColors = getRoleColors(item.chars[0], config);
-
-                    const r2y = y + fs * 0.12 + config.ruby2Offset + r2fs * 0.88;
+                    const r2y = y + fs * 0.22 + config.ruby2Offset + r2fs * 0.93;
                     const r2TextTop = r2y - r2fs * 0.88;
                     const r2BoxHeight = r2fs * 1.0;
 
-                    const r2gStrokeB = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'strokeBefore', seamFadePx);
-                    const r2gColorB  = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'colorBefore', seamFadePx);
-                    const r2gStrokeA = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'strokeAfter', seamFadePx);
-                    const r2gColorA  = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, r2RoleColors, 'colorAfter', seamFadePx);
+                    const r2gStrokeB = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, rRoleColors, 'strokeBefore', seamFadePx);
+                    const r2gColorB  = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, rRoleColors, 'colorBefore', seamFadePx);
+                    const r2gStrokeA = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, rRoleColors, 'strokeAfter', seamFadePx);
+                    const r2gColorA  = buildRoleGradient(dcx, r2TextTop, r2TextTop + r2BoxHeight, rRoleColors, 'colorAfter', seamFadePx);
+
+                    const r2Chars = item.ruby2Chars;
 
                     if (r2Chars && r2Chars.length > 1) {
                         const r2fwStr = config.ruby2Bold ? 'bold' : 'normal';
-                        const r2flatChars = [];
+                        
+                        // 【对齐修正】预先算好每一个 token block 的总宽，和单字符的独立测量值
+                        const r2Syllables = [];
+                        let r2TotalW = 0;
                         for (const rc of r2Chars) {
                             const chars = [...rc.char];
+                            let blockW = 0;
+                            const charWidths = [];
                             for (const ch of chars) {
-                                r2flatChars.push({ char: ch, offsetSec: rc.offsetSec, width: measureTotalWidth(ch, r2fs, ff, 0, r2fwStr) });
+                                // 必须测量单字符才能让分离渲染的光标准确步进
+                                const cw = measureTotalWidth(ch, r2fs, ff, 0, r2fwStr);
+                                charWidths.push(cw);
+                                blockW += cw + r2ls;
                             }
+                            r2Syllables.push({ chars, charWidths, blockW, offsetSec: rc.offsetSec });
+                            r2TotalW += blockW;
                         }
-                        const r2TotalW = r2flatChars.reduce((s, fc) => s + fc.width, 0) + (r2flatChars.length - 1) * r2ls;
+                        r2TotalW -= r2ls; 
                         let r2xCursor = groupCenterX - r2TotalW / 2;
 
-                        let r2flatIdx = 0;
                         for (let ri = 0; ri < r2Chars.length; ri++) {
-                            const rc = r2Chars[ri];
-                            const rcStart = gStart + (rc.offsetSec || (gEnd - gStart) * ri / r2Chars.length);
+                            const syl = r2Syllables[ri];
+                            const rcStart = gStart + (syl.offsetSec || (gEnd - gStart) * ri / r2Chars.length);
                             const rcEnd = (ri + 1 < r2Chars.length)
-                                ? gStart + (r2Chars[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / r2Chars.length)
+                                ? gStart + (r2Syllables[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / r2Chars.length)
                                 : gEnd;
                             const rcSpan = rcEnd - rcStart;
-                            const subChars = [...rc.char];
 
-                            for (let si = 0; si < subChars.length; si++) {
-                                const ch = subChars[si];
-                                const cw = r2flatChars[r2flatIdx].width;
-                                r2flatIdx++;
-                                const chStart = rcStart + rcSpan * si / subChars.length;
-                                const chEnd = rcStart + rcSpan * (si + 1) / subChars.length;
-                                const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
+                            let rawPct = 0;
+                            if (time >= rcEnd) rawPct = 100;
+                            else if (time > rcStart && rcSpan > 0) rawPct = ((time - rcStart) / rcSpan) * 100;
 
-                                drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeB, r2lw);
-                                dcx.fillStyle = r2gColorB; dcx.fillText(ch, r2xCursor, r2y);
+                            const visualW = syl.blockW - r2ls;
 
-                                dcx.save(); dcx.beginPath();
-                                dcx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
-                                dcx.clip();
-                                drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeA, r2lw);
-                                dcx.fillStyle = r2gColorA; dcx.fillText(ch, r2xCursor, r2y);
-                                dcx.restore();
-
-                                r2xCursor += cw + r2ls;
+                            // Pass 1: B Stroke
+                            let cxStrokeB = r2xCursor;
+                            for (let i = 0; i < syl.chars.length; i++) {
+                                drawShadowStrokeText(dcx, syl.chars[i], cxStrokeB, r2y, r2gStrokeB, r2lw);
+                                cxStrokeB += syl.charWidths[i] + r2ls;
                             }
+                            // Pass 2: B Fill
+                            let cxFillB = r2xCursor;
+                            for (let i = 0; i < syl.chars.length; i++) {
+                                dcx.fillStyle = r2gColorB; 
+                                dcx.fillText(syl.chars[i], cxFillB, r2y);
+                                cxFillB += syl.charWidths[i] + r2ls;
+                            }
+
+                            if (rawPct > 0) {
+                                dcx.save();
+                                dcx.beginPath();
+                                dcx.rect(r2xCursor - r2lw - 1, r2TextTop - r2fs, (rawPct / 100) * (visualW + r2lw * 2 + 2), r2BoxHeight + r2fs * 2);
+                                dcx.clip();
+
+                                // Pass 3: A Stroke
+                                let cxStrokeA = r2xCursor;
+                                for (let i = 0; i < syl.chars.length; i++) {
+                                    drawShadowStrokeText(dcx, syl.chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                    cxStrokeA += syl.charWidths[i] + r2ls;
+                                }
+                                // Pass 4: A Fill
+                                let cxFillA = r2xCursor;
+                                for (let i = 0; i < syl.chars.length; i++) {
+                                    dcx.fillStyle = r2gColorA; 
+                                    dcx.fillText(syl.chars[i], cxFillA, r2y);
+                                    cxFillA += syl.charWidths[i] + r2ls;
+                                }
+                                dcx.restore();
+                            }
+                            r2xCursor += syl.blockW;
                         }
                     } else {
+                        // 【对齐修正】整段非切分时，完全对称 Ruby 1 的逐字遍历写法（同时带入 4 Pass 防遮挡）
                         const r2CharsArr = [...item.ruby2];
                         const r2fwStr2 = config.ruby2Bold ? 'bold' : 'normal';
                         const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2));
@@ -438,24 +468,44 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         let r2xCursor = groupCenterX - r2TotalW / 2;
                         const r2Span = gEnd - gStart;
 
-                        for (let ri = 0; ri < r2CharsArr.length; ri++) {
-                            const ch = r2CharsArr[ri];
-                            const cw = r2CharWidths[ri];
-                            const chStart = gStart + r2Span * ri / r2CharsArr.length;
-                            const chEnd = gStart + r2Span * (ri + 1) / r2CharsArr.length;
-                            const chInfo = calcProgress(ch, time, chStart, chEnd, true, config);
+                        let rawPct = 0;
+                        if (time >= gEnd) rawPct = 100;
+                        else if (time > gStart && r2Span > 0) rawPct = ((time - gStart) / r2Span) * 100;
 
-                            drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeB, r2lw);
-                            dcx.fillStyle = r2gColorB; dcx.fillText(ch, r2xCursor, r2y);
+                        // Pass 1: B Stroke
+                        let cxStrokeB = r2xCursor;
+                        for (let i = 0; i < r2CharsArr.length; i++) {
+                            drawShadowStrokeText(dcx, r2CharsArr[i], cxStrokeB, r2y, r2gStrokeB, r2lw);
+                            cxStrokeB += r2CharWidths[i] + r2ls;
+                        }
+                        // Pass 2: B Fill
+                        let cxFillB = r2xCursor;
+                        for (let i = 0; i < r2CharsArr.length; i++) {
+                            dcx.fillStyle = r2gColorB;
+                            dcx.fillText(r2CharsArr[i], cxFillB, r2y);
+                            cxFillB += r2CharWidths[i] + r2ls;
+                        }
 
-                            dcx.save(); dcx.beginPath();
-                            dcx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
+                        if (rawPct > 0) {
+                            dcx.save();
+                            dcx.beginPath();
+                            dcx.rect(r2xCursor - r2lw - 1, r2TextTop - r2fs, (rawPct / 100) * (r2TotalW + r2lw * 2 + 2), r2BoxHeight + r2fs * 2);
                             dcx.clip();
-                            drawShadowStrokeText(dcx, ch, r2xCursor, r2y, r2gStrokeA, r2lw);
-                            dcx.fillStyle = r2gColorA; dcx.fillText(ch, r2xCursor, r2y);
-                            dcx.restore();
 
-                            r2xCursor += cw + r2ls;
+                            // Pass 3: A Stroke
+                            let cxStrokeA = r2xCursor;
+                            for (let i = 0; i < r2CharsArr.length; i++) {
+                                drawShadowStrokeText(dcx, r2CharsArr[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                cxStrokeA += r2CharWidths[i] + r2ls;
+                            }
+                            // Pass 4: A Fill
+                            let cxFillA = r2xCursor;
+                            for (let i = 0; i < r2CharsArr.length; i++) {
+                                dcx.fillStyle = r2gColorA;
+                                dcx.fillText(r2CharsArr[i], cxFillA, r2y);
+                                cxFillA += r2CharWidths[i] + r2ls;
+                            }
+                            dcx.restore();
                         }
                     }
                 }

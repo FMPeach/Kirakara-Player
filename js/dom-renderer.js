@@ -11,10 +11,11 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
     roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
     roleColors }) {
-    const pct = progress;
+    const pct = Math.max(0, progress);
     const sw = strokeWidth || Math.max(1, Math.round(fontSize * 0.12));
     const safePad = sw;
-    const rightClip = 100 - pct;
+    const rightClip = Math.min(100, Math.max(0, 100 - pct));
+    const leftClip = pct <= 0 ? '100%' : `-${safePad}px`;
 
     // 统一为 roleColors 数组（兼容旧 roleB_* props）
     let allRC = roleColors;
@@ -61,7 +62,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text)));
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
         }
         return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } }, ...children);
     }
@@ -69,7 +70,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text));
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text));
 }
 
 // ---- RubyMask: 注音逐字 clip-path（支持 N 角色垂直等分分层） ----
@@ -78,7 +79,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
     roleColors }) {
     if (!text) return null;
-    const pct = progress;
+    const pct = Math.max(0, progress);
     const sw = strokeWidth || Math.max(0.5, fontSize * 0.1);
     const safePad = Math.max(1, sw);
     const textBase = { 
@@ -89,7 +90,8 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         backfaceVisibility: 'hidden',
         fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
     };
-    const rightClip = 100 - pct;
+    const rightClip = Math.min(100, Math.max(0, 100 - pct));
+    const leftClip = pct <= 0 ? '100%' : `-${safePad}px`;
 
     let allRC = roleColors;
     if (!allRC || allRC.length === 0) {
@@ -104,7 +106,6 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         const seamFadePx = 2;
         const lh = 1.1;
         const totalH = fontSize * lh + safePad * 2;
-        // 【核心修正】与主字同理，抵消 line-height 带来的视觉偏差
         const emTopPx = safePad + fontSize * (lh - 1.0) / 2;
         const cjTopPct = (emTopPx / totalH) * 100;
         const cjBotPct = ((emTopPx + fontSize) / totalH) * 100;
@@ -132,7 +133,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 
             children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text)));
+                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
         }
         return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } }, ...children);
     }
@@ -140,7 +141,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
     return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% -${safePad}px)` } }, text));
+        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text));
 }
 
 
@@ -192,9 +193,7 @@ function LyricLine({ line, config, currentTime }) {
         const kanjiEnd = g.chars[g.chars.length - 1].endTime;
         const rc = rChars[idx];
         const charStart = kanjiStart + (rc.offsetSec || 0);
-        const charEnd = (idx < rChars.length - 1)
-            ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart)
-            : kanjiEnd;
+        const charEnd = (idx < rChars.length - 1) ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart) : kanjiEnd;
         if (currentTime < charStart) return 0;
         if (currentTime >= charEnd) return 100;
         const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
@@ -206,7 +205,9 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(rc.char, fs, config.fontFamily, rc.char.length > 1 ? (config.rubyLetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const gLeft = ink.left || 0, gRight = rc.char.length > 1 ? emW : (ink.right || emW);
+        // 多字符补偿：Canvas 不含 CSS letter-spacing，补上内部字距
+        const lsComp = rc.char.length > 1 ? (rc.char.length - 1) * (config.rubyLetterSpacing || 0) : 0;
+        const gLeft = ink.left || 0, gRight = (ink.right || 0) + lsComp || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
         const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
@@ -228,7 +229,8 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(g.ruby, fs, config.fontFamily, (config.rubyLetterSpacing || 0), fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const gL = ink.left || 0, gR = g.ruby.length > 1 ? emW : (ink.right || emW);
+        const lsComp = g.ruby.length > 1 ? (g.ruby.length - 1) * (config.rubyLetterSpacing || 0) : 0;
+        const gL = ink.left || 0, gR = (ink.right || 0) + lsComp || emW;
         const pL = -gL, pR = gR;
         const oL = pad + pL, oR = pad + pR;
         const sL = oL - pad - 1, sR = oR + pad + 1;
@@ -244,9 +246,7 @@ function LyricLine({ line, config, currentTime }) {
         const kanjiEnd = g.chars[g.chars.length - 1].endTime;
         const rc = rChars[idx];
         const charStart = kanjiStart + (rc.offsetSec || 0);
-        const charEnd = (idx < rChars.length - 1)
-            ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart)
-            : kanjiEnd;
+        const charEnd = (idx < rChars.length - 1) ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart) : kanjiEnd;
         if (currentTime < charStart) return 0;
         if (currentTime >= charEnd) return 100;
         const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
@@ -258,7 +258,8 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(rc.char, fs, config.fontFamily, rc.char.length > 1 ? (config.ruby2LetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const gLeft = ink.left || 0, gRight = rc.char.length > 1 ? emW : (ink.right || emW);
+        const lsComp = rc.char.length > 1 ? (rc.char.length - 1) * (config.ruby2LetterSpacing || 0) : 0;
+        const gLeft = ink.left || 0, gRight = (ink.right || 0) + lsComp || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
         const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
@@ -279,7 +280,8 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(g.ruby2, fs, config.fontFamily, (config.ruby2LetterSpacing || 0), fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const gL = ink.left || 0, gR = g.ruby2.length > 1 ? emW : (ink.right || emW);
+        const lsComp = g.ruby2.length > 1 ? (g.ruby2.length - 1) * (config.ruby2LetterSpacing || 0) : 0;
+        const gL = ink.left || 0, gR = (ink.right || 0) + lsComp || emW;
         const pL = -gL, pR = gR;
         const oL = pad + pL, oR = pad + pR;
         const sL = oL - pad - 1, sR = oR + pad + 1;
@@ -306,7 +308,7 @@ function LyricLine({ line, config, currentTime }) {
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 
-    // 多音节分组走字（兼容注音1和注音2的时序）
+    // 多音节分组走字
     const getGroupedCharProgress = (c, g) => {
         const rChars = g.rubyChars || g.ruby2Chars;
         const N = rChars.length, K = g.chars.length;
@@ -429,7 +431,7 @@ function LyricLine({ line, config, currentTime }) {
 
         const groupChildren = [];
 
-        // 注音
+        // 注音1
         if (g.ruby) {
             const rubyEls = [];
             const rRoles = g.chars[0]?.roles;
@@ -481,7 +483,7 @@ function LyricLine({ line, config, currentTime }) {
         });
         groupChildren.push(h('div', { key: 'chars', className: 'flex items-end', style: { gap: `${ls}px` } }, ...charEls));
 
-        // 注音2（下方，罗马音等）
+        // 注音2
         if (g.ruby2) {
             const ruby2Els = [];
             const r2Roles = g.chars[0]?.roles;
