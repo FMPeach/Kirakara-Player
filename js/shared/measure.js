@@ -73,9 +73,12 @@ function genStroke(color, width) {
 function computeRubyLayout(groups, config) {
     if (!groups || groups.length === 0) return { metrics: [], extraGaps: [] };
 
-    const fs = config.fontSize, ls = config.letterSpacing;
-    const rfs = config.rubySize, rls = config.rubyLetterSpacing || 0;
-    const r2fs = config.ruby2Size, r2ls = config.ruby2LetterSpacing || 0;
+    const fs = config.fontSize !== undefined ? config.fontSize : 64;
+    const ls = config.letterSpacing !== undefined ? config.letterSpacing : 9;
+    const rfs = config.rubySize !== undefined ? config.rubySize : 26;
+    const rls = config.rubyLetterSpacing !== undefined ? config.rubyLetterSpacing : 5;
+    const r2fs = config.ruby2Size !== undefined ? config.ruby2Size : 20;
+    const r2ls = config.ruby2LetterSpacing !== undefined ? config.ruby2LetterSpacing : 4;
     const ff = config.fontFamily;
     const fw = config.fontBold ? 'bold' : 'normal';
     const rfw = config.rubyBold ? 'bold' : 'normal';
@@ -93,13 +96,14 @@ function computeRubyLayout(groups, config) {
                     charCount++;
                 }
             }
-            w += Math.max(0, charCount - 1) * letterSpacing;
+            // 完美支持负值 letterSpacing 计算
+            w += (charCount > 0 ? charCount - 1 : 0) * letterSpacing;
         } else if (ruby) {
             const chars = [...ruby];
             for (let ci = 0; ci < chars.length; ci++) {
                 w += measureTotalWidth(chars[ci], fontSize, ff, 0, fontWeight);
             }
-            w += Math.max(0, chars.length - 1) * letterSpacing;
+            w += (chars.length > 0 ? chars.length - 1 : 0) * letterSpacing;
         }
         return w;
     };
@@ -112,7 +116,7 @@ function computeRubyLayout(groups, config) {
             const cw = measureTotalWidth(g.chars[ci].text, fs, ff, 0, fw);
             baseW += cw;
         }
-        baseW += Math.max(0, g.chars.length - 1) * ls;
+        baseW += (g.chars.length > 0 ? g.chars.length - 1 : 0) * ls;
 
         // 注音1宽
         const rubyW = measureRubyWidth(g.ruby, g.rubyChars, rfs, rls, rfw);
@@ -141,9 +145,6 @@ function computeRubyLayout(groups, config) {
         }
     }
 
-    // Step 3: Avoidance — 确保相邻注音区域间距 ≥ rubyLetterSpacing（始终生效）
-    // 使用代数和（非各自 max），窄注音的内部留白也算入缓冲
-    // 单条 max(0, ...) 公式，连续无跳变
     const extraGaps = [];
     for (let i = 0; i < metrics.length - 1; i++) {
         const m1 = metrics[i], m2 = metrics[i + 1];

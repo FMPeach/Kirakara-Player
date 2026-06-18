@@ -138,12 +138,14 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
     const drawLineCore = (dcx, line, x, y, alignRight) => {
         if (!line || !line.chars) return;
 
-        drawIndicator(dcx, line, x, y - Math.round(config.fontSize * 0.88));
-
-        const fs = config.fontSize, ls = config.letterSpacing, ff = config.fontFamily;
+        const fs = config.fontSize !== undefined ? config.fontSize : 64;
+        const ls = config.letterSpacing !== undefined ? config.letterSpacing : 9;
+        const ff = config.fontFamily;
         const fw = config.fontBold ? 'bold ' : '';
         const font = `${fw}${fs}px ${ff}`;
-        const sw = config.strokeWidth || Math.round(fs * 0.12);
+        const sw = config.strokeWidth !== undefined ? config.strokeWidth : Math.round(fs * 0.12);
+
+        drawIndicator(dcx, line, x, y - Math.round(fs * 0.88));
 
         dcx.font = font;
         applyCanvasTextMode(dcx);
@@ -276,8 +278,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                 // 注音1：顶部（原汁原味的逐字渲染模式）
                 // =====================================
                 if (item.ruby && item.chars.length > 0) {
-                    const rfs = config.rubySize, rls = config.rubyLetterSpacing || 0;
-                    const rlw = config.rubyStrokeWidth || Math.max(1, Math.round(rfs * 0.1));
+                    const rfs = config.rubySize !== undefined ? config.rubySize : 26;
+                    const rls = config.rubyLetterSpacing !== undefined ? config.rubyLetterSpacing : 5;
+                    const rlw = config.rubyStrokeWidth !== undefined ? config.rubyStrokeWidth : Math.max(1, Math.round(rfs * 0.1));
                     const rfw = config.rubyBold ? 'bold ' : '';
                     dcx.font = `${rfw}${rfs}px ${ff}`;
                     applyCanvasTextMode(dcx);
@@ -303,7 +306,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 flatChars.push({ char: ch, offsetSec: rc.offsetSec, width: measureTotalWidth(ch, rfs, ff, 0, rfwStr) });
                             }
                         }
-                        const rTotalW = flatChars.reduce((s, fc) => s + fc.width, 0) + (flatChars.length - 1) * rls;
+                        const rTotalW = flatChars.reduce((s, fc) => s + fc.width, 0) + (flatChars.length > 0 ? flatChars.length - 1 : 0) * rls;
                         let rxCursor = groupCenterX - rTotalW / 2;
                         
                         let flatIdx = 0;
@@ -341,7 +344,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         const rCharsArr = [...item.ruby];
                         const rfwStr2 = config.rubyBold ? 'bold' : 'normal';
                         const rCharWidths = rCharsArr.map(ch => measureTotalWidth(ch, rfs, ff, 0, rfwStr2));
-                        const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rCharsArr.length - 1) * rls;
+                        const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rCharsArr.length > 0 ? rCharsArr.length - 1 : 0) * rls;
                         let rxCursor = groupCenterX - rTotalW / 2;
                         const rSpan = gEnd - gStart;
 
@@ -369,8 +372,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
 
                 // 注音2（下方，罗马音等）
                 if (item.ruby2 && item.chars.length > 0) {
-                    const r2fs = config.ruby2Size, r2ls = config.ruby2LetterSpacing || 0;
-                    const r2lw = config.ruby2StrokeWidth || Math.max(1, Math.round(r2fs * 0.1));
+                    const r2fs = config.ruby2Size !== undefined ? config.ruby2Size : 20;
+                    const r2ls = config.ruby2LetterSpacing !== undefined ? config.ruby2LetterSpacing : 4;
+                    const r2lw = config.ruby2StrokeWidth !== undefined ? config.ruby2StrokeWidth : Math.max(1, Math.round(r2fs * 0.1));
                     const r2fw = config.ruby2Bold ? 'bold ' : '';
                     dcx.font = `${r2fw}${r2fs}px ${ff}`;
                     applyCanvasTextMode(dcx);
@@ -464,7 +468,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         const r2CharsArr = [...item.ruby2];
                         const r2fwStr2 = config.ruby2Bold ? 'bold' : 'normal';
                         const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2));
-                        const r2TotalW = r2CharWidths.reduce((s, w) => s + w, 0) + (r2CharsArr.length - 1) * r2ls;
+                        const r2TotalW = r2CharWidths.reduce((s, w) => s + w, 0) + (r2CharsArr.length > 0 ? r2CharsArr.length - 1 : 0) * r2ls;
                         let r2xCursor = groupCenterX - r2TotalW / 2;
                         const r2Span = gEnd - gStart;
 

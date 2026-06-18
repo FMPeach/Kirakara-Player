@@ -10,12 +10,14 @@ const CLIP_OVERPULL = /Firefox/i.test(navigator.userAgent) ? '-0.5px' : '0.5px';
 function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
     colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
     roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
-    roleColors }) {
+    roleColors, postSpacing }) {
     const pct = Math.max(0, progress);
-    const sw = strokeWidth || Math.max(1, Math.round(fontSize * 0.12));
-    const safePad = sw;
+    const sw = strokeWidth ?? Math.max(1, Math.round(fontSize * 0.12));
+    const safePad = sw <= 0 ? 0 : sw;
     const rightClip = Math.min(100, Math.max(0, 100 - pct));
     const leftClip = pct <= 0 ? '100%' : `-${safePad}px`;
+    // 用 marginRight 精确控制字符间距，取代 flex gap，完美支持负间距
+    const marginR = -safePad + (postSpacing !== undefined ? postSpacing : 0);
 
     // 统一为 roleColors 数组（兼容旧 roleB_* props）
     let allRC = roleColors;
@@ -64,11 +66,11 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
                 h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
                 h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
         }
-        return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } }, ...children);
+        return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px`, marginRight: marginR } }, ...children);
     }
 
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
-    return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px` } },
+    return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px`, marginRight: marginR } },
         h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
         h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text));
 }
@@ -77,11 +79,11 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
 function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWeight,
     colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
     roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
-    roleColors }) {
+    roleColors, postSpacing }) {
     if (!text) return null;
     const pct = Math.max(0, progress);
-    const sw = strokeWidth || Math.max(0.5, fontSize * 0.1);
-    const safePad = Math.max(1, sw);
+    const sw = strokeWidth ?? Math.max(0.5, fontSize * 0.1);
+    const safePad = sw <= 0 ? 0 : Math.max(1, sw);
     const textBase = { 
         fontFamily, fontWeight: fontWeight || 'normal',
         fontSize: `${fontSize}px`, letterSpacing: `${letterSpacing}px`,
@@ -100,7 +102,9 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         allRC = s ? [p, s] : [p];
     }
     const N = allRC.length;
-    const marginStyle = { marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: -(safePad + (letterSpacing || 0)) };
+    // 抵消 CSS letterSpacing 末尾多余空间，再加入 postSpacing 精确控距
+    const marginR = -safePad - (letterSpacing !== undefined ? letterSpacing : 0) + (postSpacing !== undefined ? postSpacing : 0);
+    const marginStyle = { marginTop: -safePad, marginBottom: -safePad, marginLeft: -safePad, marginRight: marginR };
 
     if (N >= 2) {
         const seamFadePx = 2;
@@ -197,7 +201,7 @@ function LyricLine({ line, config, currentTime }) {
         if (currentTime < charStart) return 0;
         if (currentTime >= charEnd) return 100;
         const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
-        const pad = config.rubyStrokeWidth || Math.max(1, Math.round(config.rubySize * 0.1));
+        const pad = config.rubyStrokeWidth ?? Math.max(1, Math.round(config.rubySize * 0.1));
         const fs = config.rubySize;
         const fwRuby = config.rubyBold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
@@ -222,7 +226,7 @@ function LyricLine({ line, config, currentTime }) {
         if (currentTime < t0) return 0;
         if (currentTime >= t1) return 100;
         const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
-        const pad = config.rubyStrokeWidth || Math.max(1, Math.round(config.rubySize * 0.1));
+        const pad = config.rubyStrokeWidth ?? Math.max(1, Math.round(config.rubySize * 0.1));
         const fs = config.rubySize, fwRuby = config.rubyBold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(g.ruby, fontStr);
@@ -250,7 +254,7 @@ function LyricLine({ line, config, currentTime }) {
         if (currentTime < charStart) return 0;
         if (currentTime >= charEnd) return 100;
         const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
-        const pad = config.ruby2StrokeWidth || Math.max(1, Math.round(config.ruby2Size * 0.1));
+        const pad = config.ruby2StrokeWidth ?? Math.max(1, Math.round(config.ruby2Size * 0.1));
         const fs = config.ruby2Size;
         const fwRuby = config.ruby2Bold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
@@ -273,7 +277,7 @@ function LyricLine({ line, config, currentTime }) {
         if (currentTime < t0) return 0;
         if (currentTime >= t1) return 100;
         const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
-        const pad = config.ruby2StrokeWidth || Math.max(1, Math.round(config.ruby2Size * 0.1));
+        const pad = config.ruby2StrokeWidth ?? Math.max(1, Math.round(config.ruby2Size * 0.1));
         const fs = config.ruby2Size, fwRuby = config.ruby2Bold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(g.ruby2, fontStr);
@@ -292,7 +296,7 @@ function LyricLine({ line, config, currentTime }) {
     // 主字墨迹走字
     const getProgress = (c) => {
         const rawPct = currentTime < c.startTime ? 0 : currentTime >= c.endTime ? 100 : ((currentTime - c.startTime) / (c.endTime - c.startTime)) * 100;
-        const pad = config.strokeWidth || Math.round(config.fontSize * 0.12);
+        const pad = config.strokeWidth ?? Math.round(config.fontSize * 0.12);
         const fs = config.fontSize;
         const fw = config.fontBold ? 'bold ' : '';
         const fontStr = `${fw}${fs}px ${config.fontFamily}`;
@@ -330,7 +334,7 @@ function LyricLine({ line, config, currentTime }) {
         const G = ((segIdx + segProgress) / N) * K * 100;
         const ki = g.chars.indexOf(c);
         const rawPct = Math.max(0, Math.min(100, G - ki * 100));
-        const pad = config.strokeWidth || Math.round(config.fontSize * 0.12);
+        const pad = config.strokeWidth ?? Math.round(config.fontSize * 0.12);
         const fs = config.fontSize;
         const fw = config.fontBold ? 'bold ' : '';
         const fontStr = `${fw}${fs}px ${config.fontFamily}`;
@@ -395,7 +399,7 @@ function LyricLine({ line, config, currentTime }) {
                 const offsetY = gProfile.imageOffsetY || 0;
                 if (gProfile.imageMode && gProfile.image) {
                     const marginL = (gProfile.labelMarginLeft || 0);
-                    const marginR = (gProfile.labelMarginRight || 0);
+                    const marginR = (gProfile.labelMarginRight || 0) + ls + 2;
                     children.push(h('img', {
                         key: 'label-' + gi + '-' + rk, src: gProfile.image, style: {
                             height: `${labelFs}px`, width: 'auto', objectFit: 'contain',
@@ -419,6 +423,7 @@ function LyricLine({ line, config, currentTime }) {
                                 fontWeight: config.fontBold ? 'bold' : 'normal',
                                 color: labelColor, textShadow: genStroke(labelStroke, labelSw),
                                 padding: `${labelSw}px`, margin: `-${labelSw}px`,
+                                marginRight: ci === labelChars.length - 1 ? `${ls + 2 - labelSw}px` : `-${labelSw}px`,
                                 display: 'inline-block', lineHeight: '1.2',
                                 whiteSpace: 'pre', flexShrink: 0,
                                 fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
@@ -444,16 +449,17 @@ function LyricLine({ line, config, currentTime }) {
             const rsb = rRoleColors[0].strokeColorBefore, rsa = rRoleColors[0].strokeColorAfter;
             const rsw = config.rubyStrokeWidth;
             // 双角色注音
+            const rls = config.rubyLetterSpacing !== undefined ? config.rubyLetterSpacing : 5;
             const rIsDual = rRoleColors.length >= 2;
             if (g.rubyChars && g.rubyChars.length > 1) {
                 g.rubyChars.forEach((rc, ri) => {
-                    rubyEls.push(h(RubyMask, { key: ri, text: rc.char, progress: getRubyCharProgress(g, ri), fontSize: config.rubySize, letterSpacing: rc.char.length > 1 ? config.rubyLetterSpacing : 0, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined }));
+                    rubyEls.push(h(RubyMask, { key: ri, text: rc.char, progress: getRubyCharProgress(g, ri), fontSize: config.rubySize, letterSpacing: rc.char.length > 1 ? rls : 0, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined, postSpacing: ri === g.rubyChars.length - 1 ? 0 : rls }));
                 });
             } else {
-                rubyEls.push(h(RubyMask, { key: 'r', text: g.ruby, progress: getRubyProgress(g), fontSize: config.rubySize, letterSpacing: config.rubyLetterSpacing, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined }));
+                rubyEls.push(h(RubyMask, { key: 'r', text: g.ruby, progress: getRubyProgress(g), fontSize: config.rubySize, letterSpacing: rls, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined, postSpacing: 0 }));
             }
-            groupChildren.push(h('div', { key: 'ruby', className: 'flex justify-center', style: { position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', paddingBottom: `${config.rubyOffset}px`, whiteSpace: 'nowrap' } },
-                h('span', { style: { display: 'inline-flex', gap: `${config.rubyLetterSpacing}px` } }, ...rubyEls)
+            groupChildren.push(h('div', { key: 'ruby', className: 'flex justify-center', style: { position: 'absolute', bottom: `calc(100% + ${config.rubyOffset}px)`, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' } },
+                h('span', { style: { display: 'inline-flex' } }, ...rubyEls)
             ));
         }
 
@@ -479,9 +485,10 @@ function LyricLine({ line, config, currentTime }) {
                 strokeBefore: sb, strokeAfter: sa,
                 strokeWidth: sw,
                 roleColors: cRoleColors.length >= 2 ? cRoleColors : undefined,
+                postSpacing: ci === g.chars.length - 1 ? 0 : ls
             });
         });
-        groupChildren.push(h('div', { key: 'chars', className: 'flex items-end', style: { gap: `${ls}px` } }, ...charEls));
+        groupChildren.push(h('div', { key: 'chars', className: 'flex items-end' }, ...charEls));
 
         // 注音2
         if (g.ruby2) {
@@ -495,16 +502,17 @@ function LyricLine({ line, config, currentTime }) {
             const r2cb = r2RoleColors[0].colorBefore, r2ca = r2RoleColors[0].colorAfter;
             const r2sb = r2RoleColors[0].strokeColorBefore, r2sa = r2RoleColors[0].strokeColorAfter;
             const r2sw = config.ruby2StrokeWidth;
+            const r2ls = config.ruby2LetterSpacing !== undefined ? config.ruby2LetterSpacing : 4;
             const r2IsDual = r2RoleColors.length >= 2;
             if (g.ruby2Chars && g.ruby2Chars.length > 1) {
                 g.ruby2Chars.forEach((rc, ri) => {
-                    ruby2Els.push(h(RubyMask, { key: ri, text: rc.char, progress: getRuby2CharProgress(g, ri), fontSize: config.ruby2Size, letterSpacing: rc.char.length > 1 ? config.ruby2LetterSpacing : 0, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined }));
+                    ruby2Els.push(h(RubyMask, { key: ri, text: rc.char, progress: getRuby2CharProgress(g, ri), fontSize: config.ruby2Size, letterSpacing: rc.char.length > 1 ? r2ls : 0, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined, postSpacing: ri === g.ruby2Chars.length - 1 ? 0 : r2ls }));
                 });
             } else {
-                ruby2Els.push(h(RubyMask, { key: 'r2', text: g.ruby2, progress: getRuby2Progress(g), fontSize: config.ruby2Size, letterSpacing: config.ruby2LetterSpacing, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined }));
+                ruby2Els.push(h(RubyMask, { key: 'r2', text: g.ruby2, progress: getRuby2Progress(g), fontSize: config.ruby2Size, letterSpacing: r2ls, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined, postSpacing: 0 }));
             }
-            groupChildren.push(h('div', { key: 'ruby2', className: 'flex justify-center', style: { position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', paddingTop: `${config.ruby2Offset}px`, whiteSpace: 'nowrap' } },
-                h('span', { style: { display: 'inline-flex', gap: `${config.ruby2LetterSpacing}px` } }, ...ruby2Els)
+            groupChildren.push(h('div', { key: 'ruby2', className: 'flex justify-center', style: { position: 'absolute', top: `calc(100% + ${config.ruby2Offset}px)`, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' } },
+                h('span', { style: { display: 'inline-flex' } }, ...ruby2Els)
             ));
         }
 
@@ -513,10 +521,10 @@ function LyricLine({ line, config, currentTime }) {
         const extraGap = isLastGroup ? 0 : (rubyExtraGaps[gi] || 0);
         const groupWrapperStyle = { position: 'relative' };
         if (m.isolatePad > 0) groupWrapperStyle.minWidth = `${m.effectiveW}px`;
-        if (extraGap > 0) groupWrapperStyle.marginRight = `${extraGap}px`;
+        if (!isLastGroup) groupWrapperStyle.marginRight = `${(extraGap || 0) + ls}px`;
 
         children.push(h('div', { key: gi, className: 'flex flex-col items-center', style: groupWrapperStyle }, ...groupChildren));
     });
 
-    return h('div', { className: 'flex items-baseline', style: { gap: `${ls}px`, opacity: fadeOpacity, position: 'relative' } }, ...children);
+    return h('div', { className: 'flex items-baseline', style: { opacity: fadeOpacity, position: 'relative' } }, ...children);
 }
