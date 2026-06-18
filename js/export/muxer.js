@@ -11,6 +11,7 @@ KiraExport.WebMMuxer = {
             height: opts.height,
             codec: codecToMuxLabel(opts.codec),
             durationMs: opts.durationMs,
+            fps: opts.fps,
             audioChunks: opts.audioChunks,
             audioSampleRate: opts.audioSampleRate,
             audioChannels: opts.audioChannels,
