@@ -158,3 +158,76 @@ function computeRubyLayout(groups, config) {
 
     return { metrics, extraGaps };
 }
+
+// ---- 动态探测不同字体的真实基线偏移 ----
+// Canvas fillText 的 y 是基线位置，需要知道 DOM 里基线离行框顶部多少 px
+// lineHeight: 可选，默认 1.2（主字用 1.2，注音用 1.1）
+function measureBaselineOffset(fontSize, fontFamily, fontWeight, lineHeight) {
+    const lh = lineHeight !== undefined ? lineHeight : 1.2;
+    const key = `baseline|${fontSize}|${fontFamily}|${fontWeight}|${lh}`;
+    if (glyphCache[key]) return glyphCache[key];
+    try {
+        const div = document.createElement('div');
+        div.style.fontFamily = fontFamily;
+        div.style.fontSize = `${fontSize}px`;
+        div.style.fontWeight = fontWeight || 'normal';
+        div.style.lineHeight = String(lh);
+        div.style.position = 'fixed';
+        div.style.left = '-9999px';
+        div.style.visibility = 'hidden';
+
+        // 方块字测量基线最准
+        const span = document.createElement('span');
+        span.textContent = '国';
+        div.appendChild(span);
+
+        // 零高度标尺，verticalAlign: baseline 让它正好坐在基线上
+        const baselineMarker = document.createElement('span');
+        baselineMarker.style.display = 'inline-block';
+        baselineMarker.style.width = '1px';
+        baselineMarker.style.height = '0px';
+        baselineMarker.style.verticalAlign = 'baseline';
+        div.appendChild(baselineMarker);
+
+        document.body.appendChild(div);
+
+        // 标尺 top - 外框 top = 基线离行框顶部的物理像素
+        const divRect = div.getBoundingClientRect();
+        const markerRect = baselineMarker.getBoundingClientRect();
+        const offset = markerRect.top - divRect.top;
+
+        document.body.removeChild(div);
+        return (glyphCache[key] = offset);
+    } catch (e) {
+        // 降级：约 fontSize * 0.88 + halfLeading
+        return fontSize * 0.88 + fontSize * (lh - 1) / 2;
+    }
+}
+
+// ---- 动态探测 lineHeight 撑起的真实物理外框高度 ----
+function measureBoxHeight(fontSize, fontFamily, fontWeight, lineHeight) {
+    const lh = lineHeight !== undefined ? lineHeight : 1.2;
+    const key = `boxH|${fontSize}|${fontFamily}|${fontWeight}|${lh}`;
+    if (glyphCache[key]) return glyphCache[key];
+    try {
+        const span = document.createElement('span');
+        span.textContent = '国';
+        span.style.fontFamily = fontFamily;
+        span.style.fontSize = `${fontSize}px`;
+        span.style.fontWeight = fontWeight || 'normal';
+        span.style.lineHeight = String(lh);
+        span.style.padding = '0';
+        span.style.margin = '0';
+        span.style.display = 'inline-block';
+        span.style.position = 'fixed';
+        span.style.visibility = 'hidden';
+
+        document.body.appendChild(span);
+        const rect = span.getBoundingClientRect();
+        document.body.removeChild(span);
+
+        return (glyphCache[key] = rect.height);
+    } catch (e) {
+        return fontSize * lh;
+    }
+}

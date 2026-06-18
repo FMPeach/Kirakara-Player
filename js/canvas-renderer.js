@@ -145,7 +145,12 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         const font = `${fw}${fs}px ${ff}`;
         const sw = config.strokeWidth !== undefined ? config.strokeWidth : Math.round(fs * 0.12);
 
-        drawIndicator(dcx, line, x, y - Math.round(fs * 0.88));
+        // 主字测量
+        const fwBase = config.fontBold ? 'bold' : 'normal';
+        const mainBaseline = measureBaselineOffset(fs, ff, fwBase);
+        const mainBoxH = measureBoxHeight(fs, ff, fwBase, 1.2);
+
+        drawIndicator(dcx, line, x, y - mainBaseline);
 
         dcx.font = font;
         applyCanvasTextMode(dcx);
@@ -275,7 +280,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                 const rRoleColors = getRoleColors(item.chars[0], config);
 
                 // =====================================
-                // 注音1：顶部（原汁原味的逐字渲染模式）
+                // 注音1：顶部
                 // =====================================
                 if (item.ruby && item.chars.length > 0) {
                     const rfs = config.rubySize !== undefined ? config.rubySize : 26;
@@ -285,7 +290,10 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     dcx.font = `${rfw}${rfs}px ${ff}`;
                     applyCanvasTextMode(dcx);
 
-                    const ry = y - fs * 1.045 - config.rubyOffset;
+                    // 注音1 基线 
+                    const rfwBase = config.rubyBold ? 'bold' : 'normal';
+                    const rBaseline = measureBaselineOffset(rfs, ff, rfwBase, 1.1);
+                    const ry = y - mainBaseline - (config.rubyOffset !== undefined ? config.rubyOffset : 4) - (rfs * 1.1 - rBaseline);
                     const rTextTop = ry - rfs * 0.88;
                     const rBoxHeight = rfs * 1.0;
 
@@ -379,7 +387,11 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     dcx.font = `${r2fw}${r2fs}px ${ff}`;
                     applyCanvasTextMode(dcx);
 
-                    const r2y = y + fs * 0.22 + config.ruby2Offset + r2fs * 0.93;
+                    // 注音2 基线
+                    const botDist = mainBoxH - mainBaseline;
+                    const r2fwBase = config.ruby2Bold ? 'bold' : 'normal';
+                    const r2Baseline = measureBaselineOffset(r2fs, ff, r2fwBase, 1.1);
+                    const r2y = y + botDist + (config.ruby2Offset !== undefined ? config.ruby2Offset : 4) + r2Baseline;
                     const r2TextTop = r2y - r2fs * 0.88;
                     const r2BoxHeight = r2fs * 1.0;
 
@@ -583,8 +595,16 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         }
     };
 
-    const topBaseOffset = config.fontSize - 2;
-    const botBaseOffset = -Math.round(config.fontSize * 0.20)-2;
+    // 动态探测真实基线偏移
+    const fwBase = config.fontBold ? 'bold' : 'normal';
+    const fsBase = config.fontSize !== undefined ? config.fontSize : 64;
+    const realBaselineOffset = measureBaselineOffset(fsBase, config.fontFamily, fwBase);
+
+    // L1（顶行）
+    const topBaseOffset = realBaselineOffset;
+
+    // L2（底行）
+    const botBaseOffset = -Math.round(fsBase * 1.2) + realBaselineOffset;
 
     if (l1) drawLine(l1, config.line1X, config.line1Y + topBaseOffset, false);
     if (l2) drawLine(l2, 0, 720 - config.line2Bottom + botBaseOffset, true);
