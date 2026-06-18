@@ -159,12 +159,62 @@
             const timeRef = useRef(time); timeRef.current = time;
             const animate = useCallback(() => {
                 const a = audioRef.current;
-                if (a && !a.paused && !a.ended) { const ct = a.currentTime; if (ct < a.duration || !a.duration) setTime(ct); }
                 const v = videoRef.current;
-                if (v && v.readyState >= 2 && a && !a.paused && !a.ended) { if (Math.abs(v.currentTime - timeRef.current) > 0.1) v.currentTime = timeRef.current; }
+                const pageHidden = document.hidden;
+                const audioPlaying = a && !a.paused && !a.ended;
+
+                // ① 以 audio 为主时钟，驱动歌词时间
+                if (audioPlaying) {
+                    const ct = a.currentTime;
+                    if (ct < a.duration || !a.duration) setTime(ct);
+                } else if (a && a.ended && a.duration) {
+                    // 音频结束：确保进度条跑到终点（最后一帧的 setTime 可能没覆盖到 duration）
+                    setTime(a.duration);
+                }
+
+                // ② 同步 video 到 audio，并防御浏览器后台暂停
+                if (v && v.readyState >= 2 && audioPlaying) {
+                    // 防御性恢复：audio 在播但 video 被浏览器暂停了（切 tab 导致），页面可见时立即恢复
+                    if (v.paused && !pageHidden) {
+                        v.currentTime = a.currentTime;
+                        v.play().catch(() => {});
+                    } else if (!v.paused) {
+                        // 正常同步：两者都在播放时微调
+                        if (Math.abs(v.currentTime - a.currentTime) > 0.15) {
+                            v.currentTime = a.currentTime;
+                        }
+                    }
+                }
+
                 requestRef.current = requestAnimationFrame(animate);
             }, []);
             useEffect(() => { requestRef.current = requestAnimationFrame(animate); return () => cancelAnimationFrame(requestRef.current); }, [animate]);
+
+            // ③ visibilitychange：切回标签页时立即矫正所有状态（进度条/时间UI/video）
+            useEffect(() => {
+                const onVis = () => {
+                    if (document.hidden) return;
+                    const a = audioRef.current;
+                    const v = videoRef.current;
+                    if (!a) return;
+
+                    // 同步进度条和时间显示 UI（rAF 在后台会被节流，切回时一次性追上）
+                    setTime(a.currentTime);
+
+                    if (!v || v.readyState < 2) return;
+
+                    if (!a.paused && !a.ended) {
+                        // audio 还在播 → seek 到位并恢复 video 播放
+                        v.currentTime = a.currentTime;
+                        v.play().catch(() => {});
+                    } else if (a.ended) {
+                        // audio 已结束 → video 也跳到结尾
+                        v.currentTime = a.duration || a.currentTime;
+                    }
+                };
+                document.addEventListener('visibilitychange', onVis);
+                return () => document.removeEventListener('visibilitychange', onVis);
+            }, []);
 
             const previewOuterRef = useRef(null);
             const [canvasScale, setCanvasScale] = useState(1);
