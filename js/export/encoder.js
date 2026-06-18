@@ -37,7 +37,7 @@ KiraExport.Encoder = function (opts) {
         if (typeof VideoEncoder === 'undefined') throw new Error("浏览器不支持 WebCodecs");
 
         const codecStr = expCodec === 'vp8' ? 'vp8'
-            : expCodec === 'h264' ? 'avc1.42001f'
+            : expCodec === 'h264' ? 'avc1.640034'
             : getVP9CodecString(w, h, fps);
 
         encChunks = [];

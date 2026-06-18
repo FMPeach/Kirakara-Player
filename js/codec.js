@@ -3,33 +3,32 @@
 function getVP9CodecString(width, height, fps) {
     const pixelsPerSec = width * height * fps;
     let level;
-    if      (pixelsPerSec <=   854 *  480 * 30)  level = '10';
-    else if (pixelsPerSec <=   854 *  480 * 60)  level = '11';
-    else if (pixelsPerSec <=  1280 *  720 * 30)  level = '20';
-    else if (pixelsPerSec <=  1280 *  720 * 60)  level = '21';
-    else if (pixelsPerSec <=  1920 * 1080 * 30)  level = '31';
-    else if (pixelsPerSec <=  1920 * 1080 * 60)  level = '41';
-    else if (pixelsPerSec <=  3840 * 2160 * 30)  level = '50';
-    else if (pixelsPerSec <=  3840 * 2160 * 60)  level = '51';
-    else if (pixelsPerSec <=  3840 * 2160 * 120) level = '52';
-    else if (pixelsPerSec <=  7680 * 4320 * 30)  level = '60';
-    else if (pixelsPerSec <=  7680 * 4320 * 60)  level = '61';
-    else                                          level = '62';
+    // if (pixelsPerSec <= 854 * 480 * 30) level = '10';
+    // else if (pixelsPerSec <= 854 * 480 * 60) level = '11';
+    // else if (pixelsPerSec <= 1280 * 720 * 30) level = '20';
+    // else if (pixelsPerSec <= 1280 * 720 * 60) level = '21';
+    // else if (pixelsPerSec <= 1920 * 1080 * 30) level = '31';
+    // else if (pixelsPerSec <= 1920 * 1080 * 60) level = '41';
+    // else if (pixelsPerSec <= 3840 * 2160 * 30) level = '50';
+    // else if (pixelsPerSec <= 3840 * 2160 * 60) level = '51';
+    // else if (pixelsPerSec <= 3840 * 2160 * 120) level = '52';
+    // else if (pixelsPerSec <= 7680 * 4320 * 30) level = '60';
+    // else if (pixelsPerSec <= 7680 * 4320 * 60) level = '61';
+    // else level = '62';
+    level = '62';
     return `vp09.00.${level}.08`;
 }
 
 function getAVCCodecString(profile, level) {
-    // profile: 42001f = baseline, 4d0028 = main, 640028 = high
-    // 默认 baseline 3.1 (适用于 1080p30)
-    return profile || 'avc1.42001f';
+    return profile || 'avc1.640034';
 }
 
 async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, opts = {}) {
     const { format, bitrate } = opts;  // format: 'webm'|'mp4'
 
-    // mp4 只能用 H.264；webm 用 VP9/VP8，也可选 H.264
+    // mp4 只能用 H.264；webm 用 VP9/VP8
     const candidates = (format === 'mp4')
-        ? [preferredCodec, 'avc1.42001f', 'avc1.4d0028', 'avc1.640028']  // mp4: 只试 AVC (baseline→main→high)
+        ? [preferredCodec, 'avc1.640034', 'avc1.42001f', 'avc1.4d0028',]  // mp4: 只试 AVC (baseline→main→high)
         : [preferredCodec].concat(preferredCodec !== 'vp8' ? ['vp8'] : []);
 
     // 去重
@@ -43,7 +42,13 @@ async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, opts = 
             continue;
         }
 
-        const checkCfg = { codec, width: w, height: h, bitrate: bitrate || 15_000_000, framerate: fps };
+        const checkCfg = {
+            codec, 
+            width: w, 
+            height: h, 
+            bitrate: bitrate || 15_000_000, 
+            framerate: fps
+        };
         const check = await VideoEncoder.isConfigSupported(checkCfg);
         if (!check.supported) {
             continue;
@@ -56,7 +61,15 @@ async function configureVideoEncoder(encoder, preferredCodec, w, h, fps, opts = 
 
         for (const hw of hwList) {
             try {
-                const cfg = { codec, width: w, height: h, bitrate: bitrate || 15_000_000, framerate: fps, latencyMode: 'realtime' };
+                const cfg = {
+                    codec,
+                    width: w,
+                    height: h,
+                    bitrate: bitrate || 35_000_000,
+                    framerate: fps,
+                    bitrateMode: 'variable',
+                    latencyMode: 'quality',
+                };
                 if (codec.startsWith('avc1')) cfg.hardwareAcceleration = hw;
                 encoder.configure(cfg);
                 return codec;
