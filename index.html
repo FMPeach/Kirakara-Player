@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -274,8 +274,8 @@
                                         <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer" title="注音宽度超出主字时两侧自动留白，防止注音重叠"><input type="checkbox" checked={config.rubyIsolateEnabled} onChange={e=>setConfig({...config,rubyIsolateEnabled:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">注音避让</span></label>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {[['主字大小','fontSize',32,'int'],['注音大小','rubySize',12,'int'],['注音上推','rubyOffset',0,'int'],['主字间距','letterSpacing',0,'float'],['注音字距','rubyLetterSpacing',0,'float']].map(([l,k,fb,t])=>(
-                                            <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={t==='float'?'0.1':'1'} onChange={e=>setConfig({...config,[k]:(t==='float'?parseFloat:parseInt)(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                        {[['主字大小','fontSize',32,'int',10],['注音大小','rubySize',12,'int',5],['注音上推','rubyOffset',0,'int'],['主字间距','letterSpacing',0,'float'],['注音字距','rubyLetterSpacing',0,'float']].map(([l,k,fb,t,mn])=>(
+                                            <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={t==='float'?'0.1':'1'} min={mn!=null?mn:''} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':(t==='float'?parseFloat:parseInt)(r)||fb})}} onBlur={()=>{if(config[k]===''||(mn!=null&&config[k]<mn))setConfig({...config,[k]:mn!=null?mn:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                         ))}
                                     </div>
                                     {window._hasDualRuby && h('div', { className: 'space-y-1.5' },
@@ -302,11 +302,11 @@
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Palette className="w-3 h-3"/> 颜色描边</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[['描边粗细','strokeWidth',0],['注音描边','rubyStrokeWidth',0]].map(([l,k,fb])=>(
-                                            <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>setConfig({...config,[k]:parseInt(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                            <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} min="0" onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':parseInt(r)||fb})}} onBlur={()=>{if(config[k]===''||config[k]<0)setConfig({...config,[k]:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                         ))}
                                         {window._hasDualRuby && h('div', null,
                                             h('span', { className: 'text-[9px] text-zinc-500' }, '注音2描边'),
-                                            h('input', { type:'number', value: config.ruby2StrokeWidth, onChange: e=>setConfig({...config, ruby2StrokeWidth: parseInt(e.target.value)||0}), className:'w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700' })
+                                            h('input', { type:'number', value: config.ruby2StrokeWidth, min:'0', onChange: e=>{const r=e.target.value;setConfig({...config, ruby2StrokeWidth: r===''?'':parseInt(r)||0})}, onBlur: ()=>{if(config.ruby2StrokeWidth===''||config.ruby2StrokeWidth<0)setConfig({...config, ruby2StrokeWidth:0})}, className:'w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700' })
                                         )}
                                     </div>
                                     <div className="grid grid-cols-4 gap-1.5">
@@ -401,7 +401,7 @@
                                                         className="w-5 h-4 rounded bg-zinc-700 cursor-pointer border border-zinc-600 p-0 flex-shrink-0" />
                                                     <span className="text-zinc-500">缩放</span>
                                                     <input type="number" value={p.labelScale ?? 100} step="5" min="10" max="300"
-                                                        onChange={e => updateRole({ labelScale: parseInt(e.target.value) || 100 })}
+                                                        onChange={e=>{const r=e.target.value;updateRole({labelScale:r===''?'':parseInt(r)||100})}} onBlur={()=>{if(p.labelScale===''||p.labelScale<10)updateRole({labelScale:10})}}
                                                         className="w-11 bg-zinc-700 rounded p-0.5 text-[9px] text-center border border-zinc-600 outline-none" />
                                                     <span className="text-zinc-500">%</span>
                                                 </div>}
@@ -416,7 +416,7 @@
                                     <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.fadeEnabled} onChange={e=>setConfig({...config,fadeEnabled:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">启用淡入淡出</span></label>
                                     {config.fadeEnabled&&<div className="space-y-2 ml-2">
                                         <label className="flex items-center gap-2 bg-zinc-800/50 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.fadeParagraphOnly} onChange={e=>setConfig({...config,fadeParagraphOnly:e.target.checked})} className="accent-indigo-500 w-3 h-3"/><span className="text-[10px] text-zinc-400">仅段落首尾</span></label>
-                                        <div className="flex items-center gap-2"><span className="text-[10px] text-zinc-500">时长</span><input type="number" value={config.fadeDurationMs} onChange={e=>setConfig({...config,fadeDurationMs:parseInt(e.target.value)||100})} className="w-20 bg-zinc-800 rounded p-1 text-center text-[10px] border border-zinc-700"/><span className="text-[10px] text-zinc-600">ms</span></div>
+                                        <div className="flex items-center gap-2"><span className="text-[10px] text-zinc-500">时长</span><input type="number" value={config.fadeDurationMs} min="0" onChange={e=>{const r=e.target.value;setConfig({...config,fadeDurationMs:r===''?'':parseInt(r)||100})}} onBlur={()=>{if(config.fadeDurationMs==='')setConfig({...config,fadeDurationMs:100})}} className="w-20 bg-zinc-800 rounded p-1 text-center text-[10px] border border-zinc-700"/><span className="text-[10px] text-zinc-600">ms</span></div>
                                     </div>}
                                 </section>
 
@@ -426,8 +426,8 @@
                                     <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.indicatorEnabled} onChange={e=>setConfig({...config,indicatorEnabled:e.target.checked})} className="accent-emerald-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">启用指示灯</span></label>
                                     {config.indicatorEnabled&&<div className="space-y-2 ml-2">
                                         <div className="grid grid-cols-2 gap-2">
-                                            {[['持续时间(s)','indicatorDuration',2,.5],['淡出占比','indicatorFadeRatio',0,.1],['大小(px)','indicatorSize',6],['间距(px)','indicatorSpacing',2],['描边粗细','indicatorStrokeWidth',0]].map(([l,k,fb,st])=>(
-                                                <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={st||1} onChange={e=>setConfig({...config,[k]:(st?parseFloat:parseInt)(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                            {[['持续时间(s)','indicatorDuration',2,.1,.1],['淡出占比','indicatorFadeRatio',0,.1,0],['大小(px)','indicatorSize',6,1,5],['间距(px)','indicatorSpacing',2,1],['描边粗细','indicatorStrokeWidth',0,1,0]].map(([l,k,fb,st,mn])=>(
+                                                <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={st||1} min={mn!=null?mn:''} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':(st?parseFloat:parseInt)(r)||fb})}} onBlur={()=>{if(config[k]===''||(mn!=null&&config[k]<mn))setConfig({...config,[k]:mn!=null?mn:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                             ))}
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
@@ -437,7 +437,7 @@
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             {[['X偏移','indicatorOffsetX',0],['Y偏移','indicatorOffsetY',0]].map(([l,k,fb])=>(
-                                                <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>setConfig({...config,[k]:parseInt(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                                <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':parseInt(r)||fb})}} onBlur={()=>{if(config[k]===''||config[k]<0)setConfig({...config,[k]:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                             ))}
                                         </div>
                                     </div>}
@@ -448,7 +448,7 @@
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Caption className="w-3 h-3"/> 字幕布局</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[['行1 X','line1X',0],['行1 Y','line1Y',0],['行2 X','line2Right',0],['行2 Y','line2Bottom',0]].map(([l,k,fb])=>(
-                                            <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>setConfig({...config,[k]:parseInt(e.target.value)||fb})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                            <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':parseInt(r)||fb})}} onBlur={()=>{if(config[k]===''||config[k]<0)setConfig({...config,[k]:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                         ))}
                                     </div>
                                 </section>
@@ -495,8 +495,8 @@
                                         <div><label>视频编码</label><select value={expCodec} onChange={e=>setExpCodec(e.target.value)}>{expFormat==='mp4'?<><option value="h264">H.264</option></>:<><option value="vp9">VP9</option><option value="vp8">VP8</option></>}</select></div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><label>分辨率</label><div className="flex items-center gap-1"><input type="number" value={expW} onChange={e=>setExpW(parseInt(e.target.value)||1920)} className="flex-1"/><span className="text-zinc-500">×</span><input type="number" value={expH} onChange={e=>setExpH(parseInt(e.target.value)||1080)} className="flex-1"/></div></div>
-                                        <div><label>帧率 (FPS)</label><input type="number" value={expFps} onChange={e=>setExpFps(parseInt(e.target.value)||60)}/></div>
+                                        <div><label>分辨率</label><div className="flex items-center gap-1"><input type="number" value={expW} onChange={e=>{const r=e.target.value;setExpW(r===''?'':parseInt(r)||1920)}} onBlur={()=>{if(expW===''||expW<0)setExpW(1920)}} className="flex-1"/><span className="text-zinc-500">×</span><input type="number" value={expH} onChange={e=>{const r=e.target.value;setExpH(r===''?'':parseInt(r)||1080)}} onBlur={()=>{if(expH===''||expH<0)setExpH(1080)}} className="flex-1"/></div></div>
+                                        <div><label>帧率 (FPS)</label><input type="number" value={expFps} onChange={e=>{const r=e.target.value;setExpFps(r===''?'':parseInt(r)||60)}} onBlur={()=>{if(expFps===''||expFps<0)setExpFps(60)}}/></div>
                                     </div>
                                     {audioUrl && <>
                                     <div className="text-s text-zinc-400 font-semibold">音频设置</div>
@@ -570,17 +570,17 @@
                                                     <label>标签色</label><input type="color" value={p.displayColor||p.colorBefore||config.colorBefore} onChange={e=>updateRole({displayColor:e.target.value})} style={{width:36,height:24}} />
                                                     <label>标签描边</label><input type="color" value={p.labelStrokeColor||config.strokeColorBefore} onChange={e=>updateRole({labelStrokeColor:e.target.value})} style={{width:36,height:24}} />
                                                     <label>缩放%</label><input type="number" value={p.labelScale??100} step="5" min="10" max="300" style={{width:56}}
-                                                        onChange={e=>updateRole({labelScale:parseInt(e.target.value)||100})} />
+                                                        onChange={e=>{const r=e.target.value;updateRole({labelScale:r===''?'':parseInt(r)||100})}} onBlur={()=>{if(p.labelScale===''||p.labelScale<10)updateRole({labelScale:10})}} />
                                                 </div>}
                                                 {useImage && <div className="roles-row">
                                                     <label>Y偏移</label><input type="number" value={p.imageOffsetY||''} placeholder="0" step="1" style={{width:50}}
-                                                        onChange={e=>updateRole({imageOffsetY:parseInt(e.target.value)||undefined})} />
+                                                        onChange={e=>{const r=e.target.value;updateRole({imageOffsetY:r===''?'':parseInt(r)||undefined})}} onBlur={()=>{if(p.imageOffsetY===''||p.imageOffsetY==null||isNaN(p.imageOffsetY))updateRole({imageOffsetY:0})}} />
                                                     <label>缩放%</label><input type="number" value={p.labelScale??100} step="5" min="10" max="300" style={{width:56}}
-                                                        onChange={e=>updateRole({labelScale:parseInt(e.target.value)||100})} />
+                                                        onChange={e=>{const r=e.target.value;updateRole({labelScale:r===''?'':parseInt(r)||100})}} onBlur={()=>{if(p.labelScale===''||p.labelScale<10)updateRole({labelScale:10})}} />
                                                     <label>左距</label><input type="number" value={p.labelMarginLeft||''} placeholder="0" step="1" style={{width:50}}
-                                                        onChange={e=>updateRole({labelMarginLeft:parseInt(e.target.value)||undefined})} />
+                                                        onChange={e=>{const r=e.target.value;updateRole({labelMarginLeft:r===''?'':parseInt(r)||undefined})}} onBlur={()=>{if(p.labelMarginLeft===''||p.labelMarginLeft==null||isNaN(p.labelMarginLeft))updateRole({labelMarginLeft:0})}} />
                                                     <label>右距</label><input type="number" value={p.labelMarginRight||''} placeholder="0" step="1" style={{width:50}}
-                                                        onChange={e=>updateRole({labelMarginRight:parseInt(e.target.value)||undefined})} />
+                                                        onChange={e=>{const r=e.target.value;updateRole({labelMarginRight:r===''?'':parseInt(r)||undefined})}} onBlur={()=>{if(p.labelMarginRight===''||p.labelMarginRight==null||isNaN(p.labelMarginRight))updateRole({labelMarginRight:0})}} />
                                                 </div>}
                                             </div>
                                         );
