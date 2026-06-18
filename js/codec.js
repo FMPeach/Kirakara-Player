@@ -118,3 +118,23 @@ async function configureAudioEncoder(encoder, sampleRate, channels, bitrate) {
     encoder.configure({ codec, sampleRate: sampleRate || 48000, numberOfChannels: channels || 2, bitrate: bitrate || 192000 });
     return codec;
 }
+
+async function configureOpusAudioEncoder(encoder, sampleRate, channels, bitrate) {
+    const codec = 'opus';
+    const check = await AudioEncoder.isConfigSupported({
+        codec,
+        sampleRate: sampleRate || 48000,
+        numberOfChannels: channels || 2,
+        bitrate: bitrate || 128000,
+    });
+    if (!check.supported) {
+        throw new Error('Opus 编码不支持');
+    }
+    encoder.configure({
+        codec,
+        sampleRate: sampleRate || 48000,
+        numberOfChannels: channels || 2,
+        bitrate: bitrate || 128000,
+    });
+    return codec;
+}

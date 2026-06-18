@@ -136,17 +136,20 @@ async function doExportCanvas({
         const encChunks = await encoder.finish();
         if (encChunks.length === 0) throw new Error("编码数据为空");
 
-        // 音频管线（仅 mp4 且有音频源时）
+        // 音频管线（mp4→AAC, webm→Opus）
         let audioChunks = [];
-        if (expFormat === 'mp4' && audioUrl) {
+        let audioDesc = null; // OpusHead / AAC ASC
+        if (audioUrl) {
             try {
                 setExpEta('编码音频...');
                 const sampleRate = expAudioSampleRate || 48000;
                 const channels = expAudioChannels || 2;
+                const afmt = expFormat || 'webm';
 
                 const audioEncoder = KiraExport.AudioEncoder({
                     sampleRate, channels,
                     bitrate: (expAudioBitrate || 192) * 1000,
+                    format: afmt, // 'mp4'→AAC, 'webm'→Opus
                 });
                 await audioEncoder.start();
 
@@ -157,12 +160,12 @@ async function doExportCanvas({
                 const audioBuffer = await audioCtx.decodeAudioData(audioBuf.slice(0));
 
                 const totalFrames = audioBuffer.length;  // 每声道帧数
-                const AAC_FRAME_SIZE = 1024;
+                const FRAME_SIZE = afmt === 'mp4' ? 1024 : 960; // AAC=1024, Opus=960 (20ms@48kHz)
 
                 // 逐帧编码
-                for (let offset = 0; offset < totalFrames; offset += AAC_FRAME_SIZE) {
+                for (let offset = 0; offset < totalFrames; offset += FRAME_SIZE) {
                     if (cancelRef && cancelRef.current) break;
-                    const framesThisChunk = Math.min(AAC_FRAME_SIZE, totalFrames - offset);
+                    const framesThisChunk = Math.min(FRAME_SIZE, totalFrames - offset);
                     if (framesThisChunk <= 0) break;
 
                     const t = offset / sampleRate;
@@ -185,16 +188,29 @@ async function doExportCanvas({
                     audioData.close();
                 }
                 audioChunks = await audioEncoder.finish();
+                audioDesc = audioEncoder.getDescription(); // OpusHead / AAC ASC
             } catch (e) {
                 console.warn('[Export] 音频编码失败，导出无音频视频:', e.message);
             }
+        }
+
+        // 用编码后实际数据计算时长，避免 header Duration 与实际内容不一致导致 seek 异常
+        let actualDurationMs = totalTime * 1000;
+        if (encChunks.length > 0) {
+            const lastV = encChunks[encChunks.length - 1];
+            actualDurationMs = (lastV.timestamp + Math.round(1_000_000 / fps)) / 1000;
+        }
+        if (audioChunks.length > 0) {
+            const lastA = audioChunks[audioChunks.length - 1];
+            const audioEndMs = (lastA.timestamp + (lastA.duration || 0)) / 1000;
+            if (audioEndMs > actualDurationMs) actualDurationMs = audioEndMs;
         }
 
         const muxer = KiraExport.createMuxer(expFormat || 'webm');
         const muxOpts = {
             width: w, height: h,
             codec: actualCodec,
-            durationMs: totalTime * 1000,
+            durationMs: actualDurationMs,
             fps,
             avcDesc: encoder.getDescription(),  // metadata.decoderConfig.description
         };
@@ -202,6 +218,7 @@ async function doExportCanvas({
             muxOpts.audioChunks = audioChunks;
             muxOpts.audioSampleRate = expAudioSampleRate || 48000;
             muxOpts.audioChannels = expAudioChannels || 2;
+            if (audioDesc) muxOpts.audioDesc = audioDesc;
         }
         const blob = muxer.mux(encChunks, muxOpts);
         const ext = expFormat === 'mp4' ? 'mp4' : 'webm';

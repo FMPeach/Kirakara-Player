@@ -11,6 +11,10 @@ KiraExport.WebMMuxer = {
             height: opts.height,
             codec: codecToMuxLabel(opts.codec),
             durationMs: opts.durationMs,
+            audioChunks: opts.audioChunks,
+            audioSampleRate: opts.audioSampleRate,
+            audioChannels: opts.audioChannels,
+            audioDesc: opts.audioDesc,
         });
     }
 };

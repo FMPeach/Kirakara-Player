@@ -498,7 +498,7 @@
                                         <div><label>分辨率</label><div className="flex items-center gap-1"><input type="number" value={expW} onChange={e=>setExpW(parseInt(e.target.value)||1920)} className="flex-1"/><span className="text-zinc-500">×</span><input type="number" value={expH} onChange={e=>setExpH(parseInt(e.target.value)||1080)} className="flex-1"/></div></div>
                                         <div><label>帧率 (FPS)</label><input type="number" value={expFps} onChange={e=>setExpFps(parseInt(e.target.value)||60)}/></div>
                                     </div>
-                                    {audioUrl && expFormat==='mp4' && <>
+                                    {audioUrl && <>
                                     <div className="text-s text-zinc-400 font-semibold">音频设置</div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label>采样率</label><select value={expAudioSampleRate} onChange={e=>setExpAudioSampleRate(parseInt(e.target.value))}><option value={48000}>48000Hz</option><option value={44100}>44100Hz</option></select></div>
@@ -506,7 +506,7 @@
                                     </div></>}
                                 </div>
                                 <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setShowExportModal(false)}>取消</button><button className="btn btn-primary" onClick={doExport}>开始导出</button></div>
-                                <div className="export-tips mt-3 text-xs text-zinc-400">{expFormat==='mp4'?'':'WebM 不含音频流，请自行混流。'}</div>
+                                <div className="export-tips mt-3 text-xs text-zinc-400">{expFormat==='mp4'?'':''}</div>
                             </div>
                         </div>}
                         {showAllRoles && <div className="export-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setShowAllRoles(false)}}>
