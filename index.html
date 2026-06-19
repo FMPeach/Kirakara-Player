@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kirakara Player Demo</title>
+    <script>
+        (function(){
+            if (location.pathname.startsWith('/m/')) return;
+            var ua = navigator.userAgent || '';
+            var isMobileUA = /Mobi|Android|iPhone|iPad|iPod|webOS|BlackBerry/i.test(ua);
+            var isSmallScreen = (screen.width || 1024) < 1024;
+            var hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
+            if (isMobileUA || (hasTouch && isSmallScreen)) {
+                location.replace('./m/');
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
