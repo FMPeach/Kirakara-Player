@@ -17,6 +17,8 @@ KiraExport.Renderer = function (opts) {
     let octx = null;
     let bgImgObj = null;
     let bgReady = false;
+    let bgBlurCache = null;  // 预渲染：模糊背景（blur+brightness）
+    let bgFgCache = null;    // 预渲染：居中前景图（无透明度）
 
     // ---- 初始化 ----
     const init = async () => {
@@ -30,6 +32,26 @@ KiraExport.Renderer = function (opts) {
             bgImgObj.src = bgImageUrl;
             await new Promise(r => { bgImgObj.onload = r; bgImgObj.onerror = r; });
             bgReady = !!(bgImgObj.complete && bgImgObj.naturalWidth > 0);
+
+            if (bgReady) {
+                // 预渲染模糊背景（只做一次，避免每帧 blur(20px) 的 GPU/CPU 开销）
+                bgBlurCache = document.createElement('canvas');
+                bgBlurCache.width = w;
+                bgBlurCache.height = h;
+                const bctx = bgBlurCache.getContext('2d');
+                bctx.filter = 'blur(20px) brightness(0.4)';
+                bctx.drawImage(bgImgObj, 0, 0, w, h);
+
+                // 预渲染居中前景图（不透明度在每帧通过 globalAlpha 叠加）
+                bgFgCache = document.createElement('canvas');
+                bgFgCache.width = w;
+                bgFgCache.height = h;
+                const fctx = bgFgCache.getContext('2d');
+                const sbg = Math.min(w / bgImgObj.naturalWidth, h / bgImgObj.naturalHeight);
+                const dw = bgImgObj.naturalWidth * sbg;
+                const dh = bgImgObj.naturalHeight * sbg;
+                fctx.drawImage(bgImgObj, (w - dw) / 2, (h - dh) / 2, dw, dh);
+            }
         }
     };
 
@@ -68,12 +90,12 @@ KiraExport.Renderer = function (opts) {
             // 有视频帧时，黑底衬底
             octx.fillStyle = '#000';
             octx.fillRect(0, 0, w, h);
-        } else if (bgImgObj && bgReady) {
-            // 模糊背景 + 居中背景图
-            octx.save(); octx.filter = 'blur(20px) brightness(0.4)'; octx.drawImage(bgImgObj, 0, 0, w, h); octx.restore();
-            octx.save(); octx.globalAlpha = config.bgImageOpacity ?? 1;
-            const sbg = Math.min(w / bgImgObj.naturalWidth, h / bgImgObj.naturalHeight);
-            octx.drawImage(bgImgObj, (w - bgImgObj.naturalWidth * sbg) / 2, (h - bgImgObj.naturalHeight * sbg) / 2, bgImgObj.naturalWidth * sbg, bgImgObj.naturalHeight * sbg);
+        } else if (bgBlurCache && bgFgCache) {
+            // 从预渲染缓存绘制（blur 只做一次，每帧仅 drawImage）
+            octx.drawImage(bgBlurCache, 0, 0);
+            octx.save();
+            octx.globalAlpha = config.bgImageOpacity ?? 1;
+            octx.drawImage(bgFgCache, 0, 0);
             octx.restore();
         } else {
             octx.fillStyle = config.bgColor || '#000';
