@@ -499,7 +499,7 @@
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             {[['X偏移','indicatorOffsetX',0],['Y偏移','indicatorOffsetY',0]].map(([l,k,fb])=>(
-                                                <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':parseInt(r)||fb})}} onBlur={()=>{if(config[k]===''||config[k]<0)setConfig({...config,[k]:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                                <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':parseInt(r)||fb})}} onBlur={()=>{if(config[k]==='')setConfig({...config,[k]:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                             ))}
                                         </div>
                                     </div>}
