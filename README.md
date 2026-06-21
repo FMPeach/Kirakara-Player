@@ -53,6 +53,13 @@ Kirakara Player Demo/
 │   ├── dom-renderer.js     # DOM 预览渲染器
 │   ├── canvas-renderer.js  # Canvas 2D 导出渲染器
 │   ├── exporter.js         # 导出流水线（核心）
+│   ├─export
+│   │   ├── audio-encoder.js
+│   │   ├── container-reader.js
+│   │   ├── decoder-provider.js
+│   │   ├── encoder.js
+│   │   ├── muxer.js
+│   │   └── renderer.js
 │   ├── codec.js            # 编码器配置与候选回退
 │   ├── muxer.js            # WebM EBML 封装器
 │   └── shared/
