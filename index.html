@@ -5,16 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kirakara Player Demo</title>
     <script>
-        (function(){
-            if (location.pathname.startsWith('/m/')) return;
-            var ua = navigator.userAgent || '';
-            var isMobileUA = /Mobi|Android|iPhone|iPad|iPod|webOS|BlackBerry/i.test(ua);
-            var isSmallScreen = (screen.width || 1024) < 1024;
-            var hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
-            if (isMobileUA || (hasTouch && isSmallScreen)) {
-                location.replace('./m/');
-            }
-        })();
     </script>
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="favicon.ico">
@@ -231,19 +221,26 @@
             const previewOuterRef = useRef(null);
             const [canvasScale, setCanvasScale] = useState(1);
             useEffect(() => {
-                const c = () => { if (!previewOuterRef.current) return; const r = previewOuterRef.current.getBoundingClientRect(); setCanvasScale(Math.min((r.width-40)/1280, (r.height-160)/720, 1)); };
+                const c = () => {
+                    if (!previewOuterRef.current) return;
+                    const r = previewOuterRef.current.getBoundingClientRect();
+                    const mobile = window.matchMedia('(max-width: 767px)').matches;
+                    setCanvasScale(mobile
+                        ? Math.min((r.width - 16) / 1280, 1)
+                        : Math.min((r.width - 40) / 1280, (r.height - 160) / 720, 1));
+                };
                 c(); const ro = new ResizeObserver(c); if (previewOuterRef.current) ro.observe(previewOuterRef.current); return () => ro.disconnect();
             }, []);
 
             return (
                 <div>
-                    <div className="flex h-screen bg-zinc-950 text-white overflow-hidden font-sans text-sm">
-                        <div className="w-80 bg-zinc-900 border-r border-zinc-800 p-6 flex flex-col gap-6 shadow-2xl z-20 overflow-y-auto custom-scrollbar flex-shrink-0">
-                            <div className="flex items-center gap-2 border-b border-zinc-800 pb-4">
+                    <div className="app-shell flex h-screen bg-zinc-950 text-white overflow-hidden font-sans text-sm">
+                        <div className="app-sidebar w-80 bg-zinc-900 border-r border-zinc-800 p-6 flex flex-col gap-6 shadow-2xl z-20 overflow-y-auto custom-scrollbar flex-shrink-0">
+                            <div className="app-header flex items-center gap-2 border-b border-zinc-800 pb-4">
                                 <img src="/images/logo.png" alt="Logo" className="w-6 h-6" />
                                 <h1 className="text-lg font-black uppercase tracking-tighter italic">Kirakara Player Demo</h1>
                             </div>
-                            <div className="space-y-3">
+                            <div className="settings-panels space-y-3">
                                 {/* 媒体资源 */}
                                 <section className="space-y-2">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest">
@@ -519,15 +516,17 @@
                             </div>
                         </div>
 
-                        <div className="flex-1 flex flex-col items-center justify-center p-4 bg-zinc-950 relative min-w-0" ref={previewOuterRef}>
-                            <div style={{ width:1280, height:720, backgroundColor:'#000', outline:'2px solid #27272a', transform:`scale(${canvasScale})`, transformOrigin:'center center', position:'relative', overflow:'hidden', flexShrink:0 }}>
+                        <div className="preview-pane flex-1 flex flex-col items-center justify-center p-4 bg-zinc-950 relative min-w-0" ref={previewOuterRef}>
+                            <div className="preview-frame" style={{width:1280*canvasScale,height:720*canvasScale,position:'relative',flexShrink:0}}>
+                            <div className="preview-stage" style={{ width:1280, height:720, backgroundColor:'#000', outline:'2px solid #27272a', transform:`scale(${canvasScale})`, transformOrigin:'top left', position:'relative', overflow:'hidden', flexShrink:0 }}>
                                 {bgImageEnabled && bgImageUrl && !videoUrl && (<><img src={bgImageUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',filter:'blur(20px) brightness(0.4)'}}/><img src={bgImageUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',opacity:config.bgImageOpacity??1}}/></>)}
                                 {!videoUrl && !bgImageEnabled && <div style={{position:'absolute',inset:0,backgroundColor:config.bgColor}}/>}
                                 {videoUrl && <video key={videoUrl} ref={videoRef} src={videoUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain'}} muted playsInline/>}
                                 {activeLines.l1 && <div className="absolute flex items-end" style={{left:config.line1X,top:config.line1Y}}><LyricLine line={activeLines.l1} config={config} currentTime={time}/></div>}
                                 {activeLines.l2 && <div className="absolute flex items-end" style={{right:config.line2Right,bottom:config.line2Bottom}}><LyricLine line={activeLines.l2} config={config} currentTime={time}/></div>}
                             </div>
-                            <div className="mt-4 w-full max-w-3xl bg-zinc-900/80 backdrop-blur p-5 rounded-3xl border border-zinc-800 flex items-center gap-6 shadow-xl">
+                            </div>
+                            <div className="player-controls mt-4 w-full max-w-3xl bg-zinc-900/80 backdrop-blur p-5 rounded-3xl border border-zinc-800 flex items-center gap-6 shadow-xl">
                                 <button onClick={()=>{if(isPlaying){audioRef.current?.pause();videoRef.current?.pause();}else{audioRef.current?.play()?.catch(()=>{});videoRef.current?.play()?.catch(()=>{});}}} className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500 transition-all active:scale-95">
                                     {isPlaying?<Icons.Pause className="w-6 h-6 fill-white text-white"/>:<Icons.Play className="w-6 h-6 ml-1 fill-white text-white"/>}
                                 </button>

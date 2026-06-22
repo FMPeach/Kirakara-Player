@@ -134,3 +134,110 @@ input[type="range"]::-webkit-slider-thumb {
 .export-modal .btn-primary:hover { background: #818cf8; }
 .export-modal .btn-ghost { background: transparent; color: #a1a1aa; border: 1px solid #3f3f46; }
 .export-modal .btn-ghost:hover { background: #27272a; color: #e4e4e7; }
+
+@media (max-width: 767px) {
+    html, body, #root { width: 100%; min-height: 100%; }
+    body {
+        overflow: auto;
+        overscroll-behavior-y: contain;
+        -webkit-text-size-adjust: 100%;
+    }
+    .app-shell {
+        min-height: 100vh;
+        min-height: 100dvh;
+        height: auto !important;
+        flex-direction: column;
+        overflow: visible !important;
+        padding-top: 52px;
+    }
+    .app-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100000;
+        height: 52px;
+        padding: 0 58px 0 14px !important;
+        border-bottom: 1px solid #27272a;
+        background: rgba(24,24,27,0.97);
+        backdrop-filter: blur(14px);
+    }
+    .app-header h1 {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 15px;
+    }
+    .app-sidebar {
+        order: 2;
+        width: 100% !important;
+        padding: 14px 12px 32px !important;
+        gap: 0 !important;
+        border-right: 0 !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+    }
+    .settings-panels {
+        width: 100%;
+        max-width: 640px;
+        margin: 0 auto;
+    }
+    .preview-pane {
+        order: 1;
+        position: sticky !important;
+        top: 52px;
+        z-index: 50;
+        flex: none !important;
+        width: 100%;
+        min-height: 0;
+        padding: 8px !important;
+        justify-content: flex-start !important;
+        overflow: hidden;
+        background: rgba(9,9,11,0.97) !important;
+        border-bottom: 1px solid #27272a;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.38);
+    }
+    .preview-frame { max-width: 100%; }
+    .player-controls {
+        width: 100% !important;
+        max-width: 640px !important;
+        margin-top: 8px !important;
+        padding: 10px 12px !important;
+        gap: 12px !important;
+        border-radius: 8px !important;
+        background: rgba(24,24,27,0.94) !important;
+    }
+    .player-controls > button {
+        width: 40px !important;
+        height: 40px !important;
+        flex: 0 0 40px;
+    }
+    .export-fab {
+        top: 8px;
+        right: 10px;
+        bottom: auto;
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+        z-index: 100001;
+    }
+    .export-fab svg { width: 18px; height: 18px; }
+    .export-overlay {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        min-width: 0;
+        padding: 12px;
+    }
+    .export-modal-backdrop { align-items: flex-end; }
+    .export-modal, .roles-modal {
+        width: 100%;
+        max-width: 100vw;
+        max-height: 90vh;
+        max-height: 90dvh;
+        overflow-y: auto;
+        padding: 18px;
+        border-radius: 8px 8px 0 0;
+    }
+    .roles-modal .roles-grid4 { grid-template-columns: repeat(2, 1fr); }
+}
