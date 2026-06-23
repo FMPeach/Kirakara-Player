@@ -603,9 +603,6 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
     // L1（顶行）
     const topBaseOffset = realBaselineOffset;
 
-    // L2（底行）
-    const botBaseOffset = -Math.round(fsBase * 1.2) + realBaselineOffset;
-
     if (l1) drawLine(l1, config.line1X, config.line1Y + topBaseOffset, false);
-    if (l2) drawLine(l2, 0, 720 - config.line2Bottom + botBaseOffset, true);
+    if (l2) drawLine(l2, 0, getLine2Y(config) + topBaseOffset, true);
 }

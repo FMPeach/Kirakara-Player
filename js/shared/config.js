@@ -8,7 +8,7 @@ const CONFIG_DEFAULTS = {
     rubyIsolateEnabled: true,
     colorBefore: '#ffffff', colorAfter: '#a50000',
     strokeColorBefore: '#000000', strokeColorAfter: '#ffffff', strokeWidth: 5,
-    line1X: 128, line1Y: 430, line2Right: 128, line2Bottom: 80, bgColor: '#005500',
+    line1X: 128, line1Y: 430, line2Right: 128, line2Y: 563, bgColor: '#005500',
     fadeEnabled: true, fadeParagraphOnly: true, fadeDurationMs: 666,
     indicatorEnabled: true, indicatorDuration: 3, indicatorSize: 34, indicatorSpacing: 12,
     indicatorStrokeWidth: 3, indicatorStrokeColor: '#000000', indicatorFillColor: '#ffffff',
@@ -24,6 +24,29 @@ const CONFIG_DEFAULTS = {
 };
 
 const STORAGE_KEY = 'karaoke-proto-config';
+
+function legacyLine2BottomToY(config) {
+    const fs = Number(config?.fontSize ?? CONFIG_DEFAULTS.fontSize) || CONFIG_DEFAULTS.fontSize;
+    const bottom = Number(config?.line2Bottom ?? 80) || 0;
+    const lineHeight = Math.round(fs * 1.2);
+    return 720 - bottom - lineHeight;
+}
+
+function getLine2Y(config) {
+    const y = config?.line2Y;
+    if (y !== undefined && y !== null && y !== '') return Number(y) || 0;
+    return legacyLine2BottomToY(config);
+}
+
+function normalizeConfig(rawConfig) {
+    const raw = rawConfig || {};
+    const config = { ...CONFIG_DEFAULTS, ...raw };
+    if (raw.line2Y === undefined && raw.line2Bottom !== undefined) {
+        config.line2Y = legacyLine2BottomToY(config);
+    }
+    delete config.line2Bottom;
+    return config;
+}
 
 // 时间窗口常量
 const ENTRY_BUF = 2.0;   // 提前入场（秒）
