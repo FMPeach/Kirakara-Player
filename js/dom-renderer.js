@@ -391,45 +391,85 @@ function LyricLine({ line, config, currentTime }) {
         const gCombinedKey = gRoleKeys.join('+');
         if (gExplicit && gCombinedKey && gCombinedKey !== lastRoleKey) {
             lastRoleKey = gCombinedKey;
+
+            // 收集可见标签
+            const visibleLabels = [];
             for (const rk of gRoleKeys) {
                 const gProfile = (config.characterProfiles || {})[rk] || {};
-                if (!gProfile.showLabel) { continue; }
+                if (!gProfile.showLabel) continue;
                 const labelScale = (gProfile.labelScale || 100) / 100;
                 const labelFs = Math.round(config.fontSize * labelScale);
-                const offsetY = gProfile.imageOffsetY || 0;
-                if (gProfile.imageMode && gProfile.image) {
-                    const marginL = (gProfile.labelMarginLeft || 0);
-                    const marginR = (gProfile.labelMarginRight || 0) + ls + 2;
-                    children.push(h('img', {
-                        key: 'label-' + gi + '-' + rk, src: gProfile.image, style: {
-                            height: `${labelFs}px`, width: 'auto', objectFit: 'contain',
-                            marginLeft: `${marginL}px`, marginRight: `${marginR}px`,
-                            position: 'relative', top: `${offsetY}px`,
-                            alignSelf: 'flex-end', flexShrink: 0,
-                        }
-                    }));
-                } else {
-                    const labelText = gProfile.displayName || rk;
-                    const labelColor = gProfile.displayColor || gProfile.colorBefore || config.colorBefore;
-                    const labelStroke = gProfile.labelStrokeColor || config.strokeColorBefore;
-                    const labelSw = config.strokeWidth;
-                    // 每个字独立渲染，通过 flex gap 获得和歌词一致的字间距
-                    const labelChars = [...labelText];
-                    labelChars.forEach((ch, ci) => {
-                        children.push(h('span', {
-                            key: 'label-' + gi + '-' + rk + '-' + ci, style: {
-                                fontSize: `${labelFs}px`,
+                visibleLabels.push({ rk, profile: gProfile, labelFs, offsetY: gProfile.imageOffsetY || 0 });
+            }
+
+            if (visibleLabels.length > 0) {
+                const prefix = config.roleLabelPrefix || '';
+                const sep = config.roleLabelSeparator || '';
+                const suffix = config.roleLabelSuffix || '';
+                const labelFw = config.fontBold ? 'bold' : 'normal';
+                const getRoleColor = (p) => p.displayColor || p.colorBefore || config.colorBefore;
+                const getRoleStroke = (p) => p.labelStrokeColor || config.strokeColorBefore;
+                const labelSw = config.strokeWidth;
+
+                // 辅助：创建文字标签 span 数组
+                const makeTextSpans = (text, color, stroke, fsVal, baseKey) => {
+                    const spans = [];
+                    const chars = [...text];
+                    chars.forEach((ch, ci) => {
+                        spans.push(h('span', {
+                            key: baseKey + '-' + ci, style: {
+                                fontSize: `${fsVal}px`,
                                 fontFamily: config.fontFamily,
-                                fontWeight: config.fontBold ? 'bold' : 'normal',
-                                color: labelColor, textShadow: genStroke(labelStroke, labelSw),
+                                fontWeight: labelFw,
+                                color, textShadow: genStroke(stroke, labelSw),
                                 padding: `${labelSw}px`, margin: `-${labelSw}px`,
-                                marginRight: ci === labelChars.length - 1 ? `${ls + 2 - labelSw}px` : `-${labelSw}px`,
+                                marginRight: ci === chars.length - 1 ? `${ls + 2 - labelSw}px` : `-${labelSw}px`,
                                 display: 'inline-block', lineHeight: '1.2',
                                 whiteSpace: 'pre', flexShrink: 0,
                                 fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
                             }
                         }, ch));
                     });
+                    return spans;
+                };
+
+                // 前缀
+                if (prefix) {
+                    const p = visibleLabels[0];
+                    children.push(...makeTextSpans(prefix, getRoleColor(p.profile), getRoleStroke(p.profile), p.labelFs, 'label-pfx-' + gi));
+                }
+
+                for (let vi = 0; vi < visibleLabels.length; vi++) {
+                    const { rk, profile: gProfile, labelFs, offsetY } = visibleLabels[vi];
+
+                    if (gProfile.imageMode && gProfile.image) {
+                        const marginL = (gProfile.labelMarginLeft || 0);
+                        const marginR = (gProfile.labelMarginRight || 0) + ls + 2;
+                        children.push(h('img', {
+                            key: 'label-' + gi + '-' + rk, src: gProfile.image, style: {
+                                height: `${labelFs}px`, width: 'auto', objectFit: 'contain',
+                                marginLeft: `${marginL}px`, marginRight: `${marginR}px`,
+                                position: 'relative', top: `${offsetY}px`,
+                                alignSelf: 'flex-end', flexShrink: 0,
+                            }
+                        }));
+                    } else {
+                        const labelText = gProfile.displayName || rk;
+                        const color = getRoleColor(gProfile);
+                        const stroke = getRoleStroke(gProfile);
+                        children.push(...makeTextSpans(labelText, color, stroke, labelFs, 'label-' + gi + '-' + rk));
+                    }
+
+                    // 分隔符
+                    if (sep && vi < visibleLabels.length - 1) {
+                        children.push(...makeTextSpans(sep, getRoleColor(gProfile), getRoleStroke(gProfile), labelFs, 'label-sep-' + gi + '-' + vi));
+                    }
+                }
+
+                // 后缀
+                if (suffix) {
+                    const last = visibleLabels[visibleLabels.length - 1];
+                    children.push(...makeTextSpans(suffix, getRoleColor(last.profile), getRoleStroke(last.profile), last.labelFs, 'label-sfx-' + gi));
                 }
             }
         }

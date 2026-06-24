@@ -1,26 +1,70 @@
 // ==================== 共享配置 ====================
 
 const CONFIG_DEFAULTS = {
-    fontSize: 64, letterSpacing: 9,
-    fontFamily: "'Microsoft YaHei', sans-serif", fontBold: true,
-    rubySize: 26, rubyOffset: 4, rubyLetterSpacing: 5, rubyBold: false, rubyStrokeWidth: 4,
-    ruby2Size: 20, ruby2Offset: 4, ruby2LetterSpacing: 4, ruby2Bold: false, ruby2StrokeWidth: 3,
+    fontSize: 64, 
+    letterSpacing: 9,
+    fontFamily: "'Microsoft YaHei', sans-serif", 
+    fontBold: true,
+    rubySize: 26, 
+    rubyOffset: 4, 
+    rubyLetterSpacing: 5, 
+    rubyBold: false, 
+    rubyStrokeWidth: 4,
+    ruby2Size: 20, 
+    ruby2Offset: 4, 
+    ruby2LetterSpacing: 4, 
+    ruby2Bold: false, 
+    ruby2StrokeWidth: 3,
     rubyIsolateEnabled: true,
-    colorBefore: '#ffffff', colorAfter: '#a50000',
-    strokeColorBefore: '#000000', strokeColorAfter: '#ffffff', strokeWidth: 5,
-    line1X: 128, line1Y: 430, line2Right: 128, line2Y: 563, bgColor: '#005500',
-    fadeEnabled: true, fadeParagraphOnly: true, fadeDurationMs: 666,
-    indicatorEnabled: true, indicatorDuration: 3, indicatorSize: 34, indicatorSpacing: 12,
-    indicatorStrokeWidth: 3, indicatorStrokeColor: '#000000', indicatorFillColor: '#ffffff',
-    indicatorFadeRatio: 0.0, indicatorOffsetX: 0, indicatorOffsetY: 8,
+    colorBefore: '#ffffff', 
+    colorAfter: '#a50000',
+    strokeColorBefore: '#000000', 
+    strokeColorAfter: '#ffffff', 
+    strokeWidth: 5,
+    line1X: 128, 
+    line1Y: 430, 
+    line2Right: 128, 
+    line2Y: 563, 
+    bgColor: '#005500',
+    fadeEnabled: true, 
+    fadeParagraphOnly: true, 
+    fadeDurationMs: 666,
+    indicatorEnabled: true, 
+    indicatorDuration: 3, 
+    indicatorSize: 34, 
+    indicatorSpacing: 12,
+    indicatorStrokeWidth: 3, 
+    indicatorStrokeColor: '#000000', 
+    indicatorFillColor: '#ffffff',
+    indicatorFadeRatio: 0.0, 
+    indicatorOffsetX: 0, 
+    indicatorOffsetY: 8,
     bgImageOpacity: 1.0,
-    // 角色配置：{ roleName: { displayName, displayColor, showLabel, labelStrokeColor, colorBefore, colorAfter, strokeColorBefore, strokeColorAfter, image } }
+    // 角色配置：
+    // { 
+    //   roleName: 
+    //   { 
+    //     displayName, 
+    //     displayColor, 
+    //     showLabel, 
+    //     labelStrokeColor, 
+    //     colorBefore, 
+    //     colorAfter, 
+    //     strokeColorBefore, 
+    //     strokeColorAfter, 
+    //     image
+    //   }
+    //}
     // displayName: 可选外显名称（如 "A"），缺省显示 roleName
     // displayColor: 可选外显标签颜色，缺省用 colorBefore
     // showLabel: 是否在歌词前显示角色名标签
     // labelStrokeColor: 外显标签描边色，缺省用全局 strokeColorBefore
     // image: 可选图片 URL，不为空时渲染图片替代文字
     characterProfiles: {},
+    // 角色标签装饰：前缀 / 分隔符 / 后缀（空字符串=不使用）
+    roleLabelPrefix: '',
+    roleLabelSeparator: '',
+    roleLabelSuffix: '',
 };
 
 const STORAGE_KEY = 'karaoke-proto-config';

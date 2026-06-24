@@ -172,31 +172,70 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
 
             if (gExplicit && gCombinedKey && gCombinedKey !== lastRoleKey) {
                 lastRoleKey = gCombinedKey;
+
+                // 收集可见标签（过滤 showLabel=false）
+                const visibleLabels = [];
                 for (const rk of gRoleKeys) {
                     const profile = (config.characterProfiles || {})[rk] || {};
                     if (!profile.showLabel) continue;
-
                     const labelScale = (profile.labelScale || 100) / 100;
                     const labelFs = Math.round(fs * labelScale);
-                    const offsetY = profile.imageOffsetY || 0;
+                    visibleLabels.push({ rk, profile, labelFs, offsetY: profile.imageOffsetY || 0 });
+                }
 
-                    if (profile.imageMode && profile.image) {
-                        let img = window._labelImgCache[profile.image];
-                        const marginL = profile.labelMarginLeft || 0;
-                        const marginR = profile.labelMarginRight || 0;
-                        let imgW = labelFs; 
-                        if (img && img.complete && img.naturalWidth > 0) {
-                            imgW = labelFs * (img.naturalWidth / img.naturalHeight);
+                if (visibleLabels.length > 0) {
+                    const prefix = config.roleLabelPrefix || '';
+                    const sep = config.roleLabelSeparator || '';
+                    const suffix = config.roleLabelSuffix || '';
+                    const labelFw = config.fontBold ? 'bold ' : '';
+                    const getRoleColor = (p) => p.displayColor || p.colorBefore || config.colorBefore;
+                    const getRoleStroke = (p) => p.labelStrokeColor || config.strokeColorBefore;
+
+                    // 辅助：添加字符级标签项（标签内字符紧贴，末尾 gap=ls+2，匹配 DOM 行为）
+                    const addTextLabel = (text, color, stroke, fsVal) => {
+                        const chars = [...text];
+                        chars.forEach((ch, ci) => {
+                            const chW = measureTotalWidth(ch, fsVal, ff, 0, labelFw.trim() || 'normal');
+                            layoutItems.push({ type: 'label', isImage: false, profile: null, rk: null, fs: fsVal, offsetY: 0, w: chW, text: ch, _labelColor: color, _labelStroke: stroke, _gapAfter: ci === chars.length - 1 ? ls + 2 : 0 });
+                        });
+                    };
+
+                    // 前缀（跟随第一个角色颜色）
+                    if (prefix) {
+                        addTextLabel(prefix, getRoleColor(visibleLabels[0].profile), getRoleStroke(visibleLabels[0].profile), visibleLabels[0].labelFs);
+                    }
+
+                    for (let vi = 0; vi < visibleLabels.length; vi++) {
+                        const { rk, profile, labelFs, offsetY } = visibleLabels[vi];
+
+                        if (profile.imageMode && profile.image) {
+                            let img = window._labelImgCache[profile.image];
+                            const marginL = profile.labelMarginLeft || 0;
+                            const marginR = profile.labelMarginRight || 0;
+                            let imgW = labelFs;
+                            if (img && img.complete && img.naturalWidth > 0) {
+                                imgW = labelFs * (img.naturalWidth / img.naturalHeight);
+                            }
+                            layoutItems.push({ type: 'label', isImage: true, profile, rk, fs: labelFs, offsetY, w: marginL + imgW + marginR, marginL, imgW, img, _gapAfter: ls + 2 });
+                        } else {
+                            const labelText = profile.displayName || rk;
+                            const chars = [...labelText];
+                            chars.forEach((ch, ci) => {
+                                const chW = measureTotalWidth(ch, labelFs, ff, 0, labelFw.trim() || 'normal');
+                                layoutItems.push({ type: 'label', isImage: false, profile, rk, fs: labelFs, offsetY, w: chW, text: ch, _gapAfter: ci === chars.length - 1 ? ls + 2 : 0 });
+                            });
                         }
-                        layoutItems.push({ type: 'label', isImage: true, profile, rk, fs: labelFs, offsetY, w: marginL + imgW + marginR, marginL, imgW, img });
-                    } else {
-                        const labelText = profile.displayName || rk;
-                        const labelFw = config.fontBold ? 'bold ' : '';
-                        const labelChars = [...labelText];
-                        for (const ch of labelChars) {
-                            const chW = measureTotalWidth(ch, labelFs, ff, 0, labelFw.trim() || 'normal');
-                            layoutItems.push({ type: 'label', isImage: false, profile, rk, fs: labelFs, offsetY, w: chW, text: ch });
+
+                        // 分隔符（跟随前一个角色，即当前角色）
+                        if (sep && vi < visibleLabels.length - 1) {
+                            addTextLabel(sep, getRoleColor(profile), getRoleStroke(profile), labelFs);
                         }
+                    }
+
+                    // 后缀（跟随最后一个角色颜色）
+                    if (suffix) {
+                        const last = visibleLabels[visibleLabels.length - 1];
+                        addTextLabel(suffix, getRoleColor(last.profile), getRoleStroke(last.profile), last.labelFs);
                     }
                 }
             }
@@ -228,17 +267,24 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             }
         }
 
-        const totalLineWidth = layoutItems.reduce((sum, item) => sum + item.w, 0)
-            + (layoutItems.length - 1) * ls
-            + rubyExtraGaps.reduce((s, g) => s + g, 0);
+        // 计算总行宽：标签用 _gapAfter（匹配 DOM），组之间用 ls
+        let totalLineWidth = 0;
+        for (let i = 0; i < layoutItems.length; i++) {
+            const item = layoutItems[i];
+            totalLineWidth += item.w;
+            if (i < layoutItems.length - 1) {
+                totalLineWidth += (item.type === 'label' && item._gapAfter != null) ? item._gapAfter : ls;
+            }
+        }
+        totalLineWidth += rubyExtraGaps.reduce((s, g) => s + g, 0);
         let cursorX = alignRight ? (1280 - config.line2Right - totalLineWidth) : x;
 
         groupIdx = 0;
         for (const item of layoutItems) {
             item.x = cursorX;
             if (item.type === 'label') {
-                item.drawX = item.isImage ? cursorX + item.marginL : cursorX;
-                cursorX += item.w + ls;
+                item.drawX = item.isImage ? cursorX + (item.marginL || 0) : cursorX;
+                cursorX += item.w + ((item._gapAfter != null) ? item._gapAfter : ls);
             } else if (item.type === 'group') {
                 let cx = cursorX + (item.isolatePad || 0);
                 for (const c of item.chars) {
@@ -260,8 +306,8 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         dcx.drawImage(item.img, item.drawX, y - item.fs * 0.78 + item.offsetY, item.imgW, item.fs);
                     }
                 } else {
-                    const labelColor = item.profile.displayColor || item.profile.colorBefore || config.colorBefore;
-                    const labelStroke = item.profile.labelStrokeColor || config.strokeColorBefore;
+                    const labelColor = item._labelColor || (item.profile && (item.profile.displayColor || item.profile.colorBefore)) || config.colorBefore;
+                    const labelStroke = item._labelStroke || (item.profile && item.profile.labelStrokeColor) || config.strokeColorBefore;
                     const labelFw = config.fontBold ? 'bold ' : '';
                     dcx.font = `${labelFw}${item.fs}px ${ff}`;
                     applyCanvasTextMode(dcx);
