@@ -174,8 +174,8 @@
                         const p = exp.characterProfiles[k];
                         if (p && p.image && p.image.startsWith('blob:')) { delete p.image; delete p.imageName; }
                     }
-                    // 导出工程时只保留当前歌词中出现的角色
-                    if (filterRoles && filterRoles.size > 0) {
+                    // 导出工程时只保留当前歌词中出现的角色（null=模板导出 保留全部）
+                    if (filterRoles !== null) {
                         const filtered = {};
                         for (const k of filterRoles) {
                             if (exp.characterProfiles[k]) filtered[k] = exp.characterProfiles[k];
