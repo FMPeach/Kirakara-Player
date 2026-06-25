@@ -550,12 +550,11 @@
                                             </div>
                                         );
                                     })}
-                                    {/* 标签装饰（前缀/分隔符/后缀） */}
-                                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-700/50">
+                                    {activeRoles.size > 0 && <div className="grid grid-cols-3 gap-2">
                                         {[['外显前缀','roleLabelPrefix'],['分隔符','roleLabelSeparator'],['外显后缀','roleLabelSuffix']].map(([l,k])=>(
                                             <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="text" value={config[k]||''} placeholder="可留空" onChange={e=>setConfig({...config,[k]:e.target.value})} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700 placeholder:text-zinc-600"/></div>
                                         ))}
-                                    </div>
+                                    </div>}
                                 </section>
 
                                 {/* 淡入淡出 */}
