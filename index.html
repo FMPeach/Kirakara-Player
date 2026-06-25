@@ -223,7 +223,14 @@
                             // 提取完整 JSON（含外层花括号），并容错尾随逗号
                             const raw = text.slice(start, end);
                             const json = raw.replace(/,(\s*[}\]])/g, '$1');
-                            try { setConfig(prev => ({ ...prev, ...JSON.parse(json) })); }
+                            try {
+                                const imported = JSON.parse(json);
+                                // 剔除空字符串值：仅当默认值非空时才回退，默认即为空的字段（如前缀/分隔符/后缀）允许覆盖为空
+                                for (const k in imported) {
+                                    if (imported[k] === '' && CONFIG_DEFAULTS[k] !== '' && CONFIG_DEFAULTS[k] != null) delete imported[k];
+                                }
+                                setConfig(prev => ({ ...prev, ...imported }));
+                            }
                             catch(e) { console.warn('[KRL] JSON 解析失败:', e); }
                         }
                         const rest = text.slice(end).trim();
