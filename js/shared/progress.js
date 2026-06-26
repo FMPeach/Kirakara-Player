@@ -25,7 +25,7 @@ function calcProgress(text, time, startTime, endTime, isRuby, config, rawPctOver
     const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
     const startFrac = (strokeL / total) * 100;
     const endFrac = (strokeR / total) * 100;
-    return { pct: startFrac + (rawPct / 100) * (endFrac - startFrac), total, pad, emW };
+    return { pct: startFrac + (rawPct / 100) * (endFrac - startFrac), total, pad, emW, startFrac, endFrac };
 }
 
 // 多音节注音分组 → 分段走字（兼容注音1/2时序）

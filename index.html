@@ -466,6 +466,36 @@
                                     <div className="flex items-center gap-2"><span className="text-[10px] text-zinc-500 whitespace-nowrap">背景色</span><input type="color" value={config.bgColor} onChange={e=>setConfig({...config,bgColor:e.target.value})} className="w-8 h-6 rounded bg-zinc-800 cursor-pointer border border-zinc-700"/><input type="text" value={config.bgColor} onChange={e=>setConfig({...config,bgColor:e.target.value})} className="flex-1 bg-zinc-800 rounded p-1 text-[10px] text-center border border-zinc-700 font-mono"/></div>
                                 </section>
 
+                                {/* 阴影 */}
+                                <section className="space-y-2 pt-3 border-t border-zinc-800">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Blur className="w-3 h-3"/> 阴影</label>
+                                        <label className="flex items-center gap-1 cursor-pointer ml-auto">
+                                            <input type="checkbox" checked={!!config.shadowEnabled} onChange={e=>setConfig({...config,shadowEnabled:e.target.checked||false})} className="accent-amber-500 w-3 h-3" />
+                                            <span className="text-[9px] text-zinc-500">启用</span>
+                                        </label>
+                                    </div>
+                                    {config.shadowEnabled && (
+                                        <div className="space-y-2">
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                                {[['阴影前色','shadowColorBefore'],['阴影后色','shadowColorAfter']].map(([l,k])=>(
+                                                    <div key={k} className="flex flex-col items-center gap-0.5"><span className="text-[8px] text-zinc-500">{l}</span><input type="color" value={config[k]||'#000000'} onChange={e=>setConfig({...config,[k]:e.target.value})} className="w-full h-7 rounded bg-zinc-800 cursor-pointer border border-zinc-700"/></div>
+                                                ))}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[['距离(px)','shadowDistance',5,0.5,null],['角度(°)','shadowAngle',45,1,null]].map(([l,k,fb,st,mn])=>(
+                                                    <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={st} onChange={e=>{const r=e.target.value;const n=parseFloat(r);setConfig({...config,[k]:r===''?'':Number.isNaN(n)?fb:n})}} onBlur={()=>{if(config[k]===''||(mn!=null&&config[k]<mn))setConfig({...config,[k]:mn!=null?mn:fb})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                                ))}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[['扩散(px)','shadowSpread',0,1,0],['模糊(px)','shadowBlur',0,1,0]].map(([l,k,fb,st,mn])=>(
+                                                    <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} min={mn} step={st} onChange={e=>{const r=e.target.value;const n=parseInt(r);setConfig({...config,[k]:r===''?'':Number.isNaN(n)?fb:n})}} onBlur={()=>{if(config[k]===''||config[k]<mn)setConfig({...config,[k]:mn})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </section>
+
                                 {/* 角色配置 */}
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <div className="flex items-center justify-between">
