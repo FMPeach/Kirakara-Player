@@ -40,7 +40,10 @@ KiraExport.Renderer = function (opts) {
                 bgBlurCache.height = h;
                 const bctx = bgBlurCache.getContext('2d');
                 bctx.filter = 'blur(20px) brightness(0.4)';
-                bctx.drawImage(bgImgObj, 0, 0, w, h);
+                const bs = Math.max(w / bgImgObj.naturalWidth, h / bgImgObj.naturalHeight);
+                const bdw = bgImgObj.naturalWidth * bs;
+                const bdh = bgImgObj.naturalHeight * bs;
+                bctx.drawImage(bgImgObj, (w - bdw) / 2, (h - bdh) / 2, bdw, bdh);
 
                 // 预渲染居中前景图（不透明度在每帧通过 globalAlpha 叠加）
                 bgFgCache = document.createElement('canvas');
