@@ -229,7 +229,17 @@
                                 for (const k in imported) {
                                     if (imported[k] === '' && CONFIG_DEFAULTS[k] !== '' && CONFIG_DEFAULTS[k] != null) delete imported[k];
                                 }
-                                setConfig(prev => ({ ...prev, ...imported }));
+                                setConfig(prev => {
+                                    const merged = { ...prev };
+                                    for (const k in imported) {
+                                        if (k === 'characterProfiles' && imported[k] && typeof imported[k] === 'object') {
+                                            merged.characterProfiles = { ...prev.characterProfiles, ...imported[k] };
+                                        } else {
+                                            merged[k] = imported[k];
+                                        }
+                                    }
+                                    return merged;
+                                });
                             }
                             catch(e) { console.warn('[KRL] JSON 解析失败:', e); }
                         }
