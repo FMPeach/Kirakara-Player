@@ -11,10 +11,10 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     colorBefore, colorAfter, strokeBefore, strokeAfter, strokeWidth,
     roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
     roleColors, postSpacing }) {
-    const pct = Math.max(0, progress);
+    const pct = progress;
     const sw = strokeWidth ?? Math.max(1, Math.round(fontSize * 0.12));
     const safePad = sw <= 0 ? 0 : sw;
-    const rightClip = Math.min(100, Math.max(0, 100 - pct));
+    const rightClip = 100 - pct;
     const leftClip = pct <= 0 ? '100%' : `-${safePad}px`;
     // 用 marginRight 精确控制字符间距，取代 flex gap，完美支持负间距
     const marginR = -safePad + (postSpacing !== undefined ? postSpacing : 0);
@@ -81,7 +81,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     roleB_colorBefore, roleB_colorAfter, roleB_strokeBefore, roleB_strokeAfter,
     roleColors, postSpacing }) {
     if (!text) return null;
-    const pct = Math.max(0, progress);
+    const pct = progress;
     const sw = strokeWidth ?? Math.max(0.5, fontSize * 0.1);
     const safePad = sw <= 0 ? 0 : Math.max(1, sw);
     const textBase = { 
@@ -92,7 +92,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         backfaceVisibility: 'hidden',
         fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
     };
-    const rightClip = Math.min(100, Math.max(0, 100 - pct));
+    const rightClip = 100 - pct;
     const leftClip = pct <= 0 ? '100%' : `-${safePad}px`;
 
     let allRC = roleColors;
@@ -333,7 +333,7 @@ function LyricLine({ line, config, currentTime }) {
         else segProgress = Math.max(0, Math.min(1, (currentTime - segStartAbs) / (segEndAbs - segStartAbs)));
         const G = ((segIdx + segProgress) / N) * K * 100;
         const ki = g.chars.indexOf(c);
-        const rawPct = Math.max(0, Math.min(100, G - ki * 100));
+        const rawPct = G - ki * 100;
         const pad = config.strokeWidth ?? Math.round(config.fontSize * 0.12);
         const fs = config.fontSize;
         const fw = config.fontBold ? 'bold ' : '';
