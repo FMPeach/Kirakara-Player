@@ -135,6 +135,125 @@ input[type="range"]::-webkit-slider-thumb {
 .export-modal .btn-ghost { background: transparent; color: #a1a1aa; border: 1px solid #3f3f46; }
 .export-modal .btn-ghost:hover { background: #27272a; color: #e4e4e7; }
 
+/* === 歌曲标题设置 === */
+.settings-tab-bar {
+    display: flex;
+    border-bottom: 1px solid #27272a;
+}
+.settings-tab-bar button {
+    flex: 1;
+    min-height: 28px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: #71717a;
+    font-size: 10px;
+    cursor: pointer;
+}
+.settings-tab-bar button:hover { color: #d4d4d8; }
+.settings-tab-bar button.active { border-bottom-color: #6366f1; color: #fff; }
+.settings-tab-bar button:focus, .title-style-details summary:focus { outline: none; box-shadow: none; }
+.title-group-section { padding: 6px 0 8px; }
+.title-group-section + .title-group-section { padding-top: 10px; border-top: 1px solid #27272a; }
+.title-text-input, .title-number-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 7px;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    outline: none;
+    background: #27272a;
+    color: #e4e4e7;
+    font-size: 10px;
+}
+.title-text-input:focus, .title-number-input:focus { border-color: #6366f1; }
+.title-group-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid #6366f1;
+    border-radius: 4px;
+    outline: none;
+    background: #27272a;
+    color: #e4e4e7;
+    font-size: 10px;
+}
+.title-color-input {
+    width: 100%;
+    height: 26px;
+    padding: 1px;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    background: #27272a;
+    cursor: pointer;
+}
+.title-icon-button {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    line-height: 1;
+    cursor: pointer;
+}
+.title-icon-button:disabled { cursor: not-allowed; }
+.title-check-row {
+    min-height: 29px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 7px;
+    border-radius: 4px;
+    background: #27272a;
+    color: #d4d4d8;
+    font-size: 10px;
+    cursor: pointer;
+}
+.title-align-control {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: hidden;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+}
+.title-align-control button {
+    min-height: 26px;
+    border: 0;
+    border-right: 1px solid #3f3f46;
+    background: #27272a;
+    color: #a1a1aa;
+    font-size: 9px;
+    cursor: pointer;
+}
+.title-align-control button:last-child { border-right: 0; }
+.title-align-control button.active { background: #4f46e5; color: #fff; }
+.title-add-button {
+    width: 100%;
+    min-height: 27px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px dashed #3f3f46;
+    border-radius: 4px;
+    background: transparent;
+    font-size: 10px;
+    cursor: pointer;
+}
+.title-add-button:hover { border-color: #6366f1; }
+.title-style-details summary {
+    padding: 4px 0;
+    color: #a5b4fc;
+    font-size: 9px;
+    cursor: pointer;
+    user-select: none;
+}
+.title-style-editor { margin-left: 8px; padding-left: 8px; border-left: 1px solid #3f3f46; }
+
 @media (max-width: 767px) {
     html, body, #root { width: 100%; min-height: 100%; }
     body {

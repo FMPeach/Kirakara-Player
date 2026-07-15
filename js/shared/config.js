@@ -65,6 +65,7 @@ const CONFIG_DEFAULTS = {
     roleLabelPrefix: '',
     roleLabelSeparator: '',
     roleLabelSuffix: '',
+    songTitle: createDefaultSongTitleConfig(),
 };
 
 const STORAGE_KEY = 'karaoke-proto-config';
@@ -85,6 +86,7 @@ function getLine2Y(config) {
 function normalizeConfig(rawConfig) {
     const raw = rawConfig || {};
     const config = { ...CONFIG_DEFAULTS, ...raw };
+    config.songTitle = normalizeSongTitleConfig(raw.songTitle);
     if (raw.line2Y === undefined && raw.line2Bottom !== undefined) {
         config.line2Y = legacyLine2BottomToY(config);
     }

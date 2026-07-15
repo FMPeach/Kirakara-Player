@@ -204,6 +204,57 @@ function measureBaselineOffset(fontSize, fontFamily, fontWeight, lineHeight) {
     }
 }
 
+// 标题的 DOM/Canvas 共用测量结果：DOM 定义字符宽度与基线，两个渲染器只消费布局。
+function measureSongTitleLayout(layout) {
+    const groups = Array.isArray(layout) ? layout : [];
+    return groups.map(group => {
+        const style = group.style || SONG_TITLE_INFO_STYLE_DEFAULTS;
+        const fontWeight = style.fontBold ? 'bold' : 'normal';
+        const baselineOffset = measureBaselineOffset(
+            style.fontSize,
+            style.fontFamily,
+            fontWeight,
+            1,
+        );
+        const lines = (Array.isArray(group.lines) ? group.lines : []).map(line => {
+            const chars = [...line];
+            const widths = chars.map(char => measureTotalWidth(
+                char,
+                style.fontSize,
+                style.fontFamily,
+                0,
+                fontWeight,
+            ));
+            const totalWidth = widths.reduce((sum, width) => sum + width, 0)
+                + Math.max(0, chars.length - 1) * style.letterSpacing;
+            return { chars, widths, totalWidth };
+        });
+        const paragraphWidth = Math.max(0, ...lines.map(line => line.totalWidth));
+
+        return {
+            ...group,
+            style,
+            fontWeight,
+            baselineOffset,
+            paragraphWidth,
+            measuredLines: lines.map((line, lineIndex) => {
+                const topY = style.y + lineIndex * (style.fontSize + style.lineSpacing);
+                return {
+                    ...line,
+                    startX: getSongTitleLineStartX(
+                        style.align,
+                        style.x,
+                        line.totalWidth,
+                        paragraphWidth,
+                    ),
+                    topY,
+                    baselineY: topY + baselineOffset,
+                };
+            }),
+        };
+    });
+}
+
 // ---- 动态探测 lineHeight 撑起的真实物理外框高度 ----
 function measureBoxHeight(fontSize, fontFamily, fontWeight, lineHeight) {
     const lh = lineHeight !== undefined ? lineHeight : 1.2;

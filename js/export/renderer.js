@@ -11,6 +11,7 @@ KiraExport.Renderer = function (opts) {
     const h = opts.height || 1080;
     const bgImageEnabled = opts.bgImageEnabled || false;
     const bgImageUrl = opts.bgImageUrl || null;
+    const titleBackgroundUrl = opts.titleBackgroundUrl || null;
 
     // ---- 内部状态 ----
     let offCanvas = null;
@@ -19,6 +20,8 @@ KiraExport.Renderer = function (opts) {
     let bgReady = false;
     let bgBlurCache = null;  // 预渲染：模糊背景（blur+brightness）
     let bgFgCache = null;    // 预渲染：居中前景图（无透明度）
+    let titleBgImgObj = null;
+    let titleBgReady = false;
 
     // ---- 初始化 ----
     const init = async () => {
@@ -56,6 +59,13 @@ KiraExport.Renderer = function (opts) {
                 fctx.drawImage(bgImgObj, (w - dw) / 2, (h - dh) / 2, dw, dh);
             }
         }
+
+        if (titleBackgroundUrl) {
+            titleBgImgObj = new Image();
+            titleBgImgObj.src = titleBackgroundUrl;
+            await new Promise(r => { titleBgImgObj.onload = r; titleBgImgObj.onerror = r; });
+            titleBgReady = !!(titleBgImgObj.complete && titleBgImgObj.naturalWidth > 0);
+        }
     };
 
     // ---- 渲染单帧 ----
@@ -75,6 +85,7 @@ KiraExport.Renderer = function (opts) {
         const {
             videoFrame,
             targetTime,
+            projectTime = targetTime,
             parsedData,
             config,
             entryBuf,
@@ -118,10 +129,31 @@ KiraExport.Renderer = function (opts) {
             octx.drawImage(videoFrame, (w - dw) / 2, (h - dh) / 2, dw, dh);
         }
 
-        // === 歌词 ===
+        // === 标题前补背景 ===
+        const preludeState = getPreludeBackgroundState(projectTime, config.songTitle);
+        if (preludeState.visible) {
+            octx.save();
+            octx.globalAlpha = preludeState.layerAlpha;
+            octx.fillStyle = '#000000';
+            octx.fillRect(0, 0, w, h);
+            if (titleBgReady) {
+                const scale = Math.max(w / titleBgImgObj.naturalWidth, h / titleBgImgObj.naturalHeight);
+                const dw = titleBgImgObj.naturalWidth * scale;
+                const dh = titleBgImgObj.naturalHeight * scale;
+                octx.globalAlpha = preludeState.layerAlpha * preludeState.imageAlpha;
+                octx.drawImage(titleBgImgObj, (w - dw) / 2, (h - dh) / 2, dw, dh);
+            }
+            octx.restore();
+        }
+
+        // === 标题与歌词 ===
         octx.save();
         octx.scale(w / 1280, h / 720);
-        drawLyricsOnCanvas(octx, parsedData, targetTime, config, entryBuf);
+        drawSongTitleOnCanvas(octx, projectTime, config);
+        const prependDuration = getSongTitlePrependDuration(config.songTitle);
+        if (prependDuration <= 0 || projectTime >= 0) {
+            drawLyricsOnCanvas(octx, parsedData, projectTime, config, entryBuf);
+        }
         octx.restore();
 
         return offCanvas;

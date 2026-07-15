@@ -20,6 +20,76 @@ function _preloadCanvasImages(config) {
     }
 }
 
+let _songTitleLayerCanvas = null;
+let _songTitleLayerCtx = null;
+
+function _drawSongTitleLayout(ctx, layout) {
+    ctx.save();
+    ctx.textBaseline = 'alphabetic';
+    applyCanvasTextMode(ctx);
+
+    for (const group of layout) {
+        const { style, fontWeight } = group;
+        ctx.font = `${style.fontBold ? 'bold ' : ''}${style.fontSize}px ${style.fontFamily}`;
+        for (const line of group.measuredLines) {
+            const { chars, widths, startX, baselineY } = line;
+
+            if (style.strokeWidth > 0 && style.strokeColor) {
+                ctx.save();
+                ctx.strokeStyle = style.strokeColor;
+                ctx.lineWidth = style.strokeWidth * 2.2;
+                ctx.lineJoin = 'round';
+                ctx.miterLimit = 2;
+                let x = startX;
+                for (let i = 0; i < chars.length; i++) {
+                    ctx.strokeText(chars[i], x, baselineY);
+                    x += widths[i] + (i < chars.length - 1 ? style.letterSpacing : 0);
+                }
+                ctx.restore();
+            }
+
+            ctx.fillStyle = style.color;
+            let x = startX;
+            for (let i = 0; i < chars.length; i++) {
+                ctx.fillText(chars[i], x, baselineY);
+                x += widths[i] + (i < chars.length - 1 ? style.letterSpacing : 0);
+            }
+        }
+    }
+
+    ctx.restore();
+}
+
+function drawSongTitleOnCanvas(ctx, projectTime, config) {
+    const songTitle = config?.songTitle;
+    const opacity = getSongTitleTextOpacity(projectTime, songTitle, config);
+    if (opacity <= 0) return;
+
+    const layout = measureSongTitleLayout(resolveSongTitleLayout(songTitle));
+    if (layout.length === 0) return;
+
+    const mainCanvas = ctx.canvas;
+    if (!_songTitleLayerCanvas
+        || _songTitleLayerCanvas.width !== mainCanvas.width
+        || _songTitleLayerCanvas.height !== mainCanvas.height) {
+        _songTitleLayerCanvas = document.createElement('canvas');
+        _songTitleLayerCanvas.width = mainCanvas.width;
+        _songTitleLayerCanvas.height = mainCanvas.height;
+        _songTitleLayerCtx = _songTitleLayerCanvas.getContext('2d');
+    }
+
+    _songTitleLayerCtx.setTransform(1, 0, 0, 1, 0, 0);
+    _songTitleLayerCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    _songTitleLayerCtx.setTransform(ctx.getTransform());
+    _drawSongTitleLayout(_songTitleLayerCtx, layout);
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha *= opacity;
+    ctx.drawImage(_songTitleLayerCanvas, 0, 0);
+    ctx.restore();
+}
+
 function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
     _preloadCanvasImages(config);
 

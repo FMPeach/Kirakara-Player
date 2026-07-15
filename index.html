@@ -19,6 +19,7 @@
     <script src="https://unpkg.com/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
 
     <!-- ===== 底层共享模块 ===== -->
+    <script src="js/shared/title.js"></script>
     <script src="js/shared/config.js"></script>
     <script src="js/shared/measure.js"></script>
     <script src="js/shared/progress.js"></script>
@@ -61,6 +62,259 @@
             Caption: (p) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M7 12h2"/><path d="M11 12h5"/><path d="M7 16h2"/><path d="M11 16h5"/></svg>),
             FolderOpen: (p) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>),
             Save: (p) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>),
+            Plus: (p) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 5v14M5 12h14"/></svg>),
+            Trash: (p) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg>),
+        };
+
+        const FONT_OPTIONS = Object.freeze([
+            ["'Microsoft YaHei', sans-serif", '微软雅黑'],
+            ["'SimHei', sans-serif", '黑体'],
+            ["'Kaiti', serif", '楷体'],
+            ["'Noto Sans JP', sans-serif", 'Noto Sans JP'],
+            ["'Noto Serif JP', serif", 'Noto Serif JP'],
+            ["'Yu Gothic Medium', sans-serif", '游ゴシック'],
+            ["'Yu Mincho Medium', serif", '游明朝'],
+            ["'MotoyaLMaru W3 Mono', monospace", 'モトヤL丸 W3 Mono'],
+            ["'UD Digi Kyokasho NP-R', sans-serif", 'UD Digital 教科书体'],
+            ["'寒蝉全圆体', sans-serif", '寒蝉全圆体'],
+            ["'小濑字体P JP', sans-serif", '小濑字体'],
+            ["'RiiPopkaku', sans-serif", 'りいポップ角'],
+            ['system-ui', '系统默认'],
+        ]);
+
+        const FontOptions = () => FONT_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+        ));
+
+        const SongTitleStyleEditor = ({ group, onChange }) => {
+            const style = group.style;
+            const isTitle = group.kind === 'title';
+            const setNumber = (key, raw) => { const v = Number(raw); if (Number.isFinite(v)) onChange({ [key]: v }); };
+
+            return (
+                <div className="flex flex-col gap-1.5 pt-1.5 mt-1.5 border-t border-zinc-800">
+                    {/* 字体名 */}
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] text-zinc-500">字体</span>
+                        <div className="flex items-stretch bg-zinc-800 rounded border border-zinc-700 overflow-hidden">
+                            <input type="text" value={style.fontFamily} onChange={e=>onChange({fontFamily:e.target.value})} placeholder="输入字体名称"
+                                className="flex-1 min-w-0 bg-transparent p-1.5 text-[10px] outline-none" />
+                            <div className="relative w-7 flex-shrink-0 overflow-hidden">
+                                <select value={style.fontFamily} onChange={e=>onChange({fontFamily:e.target.value})}
+                                    className="absolute right-0 top-0 h-full w-40 opacity-0 cursor-pointer text-[10px]" style={{colorScheme:'dark'}}>
+                                    <FontOptions />
+                                </select>
+                                <span className="absolute inset-0 flex items-center justify-center text-zinc-500 pointer-events-none text-[10px]">▼</span>
+                            </div>
+                        </div>
+                    </div>
+                    {/* 大小 / 字距 / 行距（歌名2列，分组3列） */}
+                    <div className={"grid gap-2 " + (isTitle?'grid-cols-2':'grid-cols-3')}>
+                        <div><span className="text-[9px] text-zinc-500">大小</span><input type="number" value={style.fontSize} onChange={e=>setNumber('fontSize',e.target.value)}
+                            className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                        <div><span className="text-[9px] text-zinc-500">字距</span><input type="number" step="0.1" value={style.letterSpacing} onChange={e=>setNumber('letterSpacing',e.target.value)}
+                            className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                        {!isTitle && <div><span className="text-[9px] text-zinc-500">行距</span><input type="number" step="0.1" value={style.lineSpacing} onChange={e=>setNumber('lineSpacing',e.target.value)}
+                            className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>}
+                    </div>
+                    {/* 加粗 */}
+                    <div className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer select-none" onClick={()=>onChange({fontBold:!style.fontBold})}>
+                        <input type="checkbox" checked={style.fontBold} onChange={()=>{}} className="accent-indigo-500 w-3.5 h-3.5 pointer-events-none" />
+                        <span className="text-[10px] text-zinc-300">字体加粗</span>
+                    </div>
+                    {/* 颜色 */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <div><span className="text-[9px] text-zinc-500">文字色</span><input type="color" value={style.color} onChange={e=>onChange({color:e.target.value})}
+                            className="w-full h-7 rounded bg-zinc-800 cursor-pointer border border-zinc-700"/></div>
+                        <div><span className="text-[9px] text-zinc-500">描边色</span><input type="color" value={style.strokeColor} onChange={e=>onChange({strokeColor:e.target.value})}
+                            className="w-full h-7 rounded bg-zinc-800 cursor-pointer border border-zinc-700"/></div>
+                        <div><span className="text-[9px] text-zinc-500">描边宽</span><input type="number" step="0.5" min="0" value={style.strokeWidth} onChange={e=>setNumber('strokeWidth',e.target.value)}
+                            className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                    </div>
+                    {/* X / Y */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <div><span className="text-[9px] text-zinc-500">X</span><input type="number" value={style.x} onChange={e=>setNumber('x',e.target.value)}
+                            className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                        <div><span className="text-[9px] text-zinc-500">Y</span><input type="number" value={style.y} onChange={e=>setNumber('y',e.target.value)}
+                            className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
+                    </div>
+                    {/* 对齐（歌名3项，分组5项） */}
+                    <div>
+                        <span className="text-[9px] text-zinc-500">对齐</span>
+                        <div className={"grid overflow-hidden border border-zinc-700 rounded mt-0.5 " + (isTitle?'grid-cols-3':'grid-cols-5')}>
+                            {(isTitle
+                                ? [
+                                    ['left', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="12" y2="18"/></svg>],
+                                    ['center', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="6" x2="19" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="7" y1="18" x2="17" y2="18"/></svg>],
+                                    ['right', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="7" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="18" x2="21" y2="18"/></svg>],
+                                ]
+                                : [
+                                    ['left', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="17" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="12" y2="18"/></svg>],
+                                    ['center-left', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="6" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="15" y2="18"/></svg>],
+                                    ['center', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="6" x2="19" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="7" y1="18" x2="17" y2="18"/></svg>],
+                                    ['center-right', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="18" y2="6"/><line x1="3" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="18" y2="18"/></svg>],
+                                    ['right', <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="7" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="18" x2="21" y2="18"/></svg>],
+                                ]
+                            ).map(([v,icon]) =>
+                                <button key={v} type="button" onClick={()=>onChange({align:v})}
+                                    aria-label={({left:'左对齐','center-left':'居中左对齐',center:'居中','center-right':'居中右对齐',right:'右对齐'})[v]}
+                                    title={({left:'左对齐','center-left':'居中左对齐',center:'居中','center-right':'居中右对齐',right:'右对齐'})[v]}
+                                    className={"border-r border-zinc-700 last:border-r-0 flex items-center justify-center py-1.5 "+ (style.align===v?'bg-indigo-600 text-white':'bg-zinc-800 text-zinc-400')}>{icon}</button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SongTitleSettings = ({ config, setConfig, backgroundImageUrl, onBackgroundFile, onClearBackground }) => {
+            const [editingGroupIndex, setEditingGroupIndex] = useState(null);
+            const songTitle = config.songTitle;
+            const infoGroups = songTitle.groups.filter(group => group.kind === 'info');
+
+            const updateSongTitle = (updater) => setConfig(prev => {
+                const current = normalizeSongTitleConfig(prev.songTitle);
+                const next = typeof updater === 'function' ? updater(current) : updater;
+                return { ...prev, songTitle: normalizeSongTitleConfig(next) };
+            });
+            const updateGroup = (groupIndex, updater) => updateSongTitle(current => ({
+                ...current,
+                groups: current.groups.map((group, index) => index === groupIndex
+                    ? (typeof updater === 'function' ? updater(group) : { ...group, ...updater })
+                    : group),
+            }));
+            const addGroup = () => updateSongTitle(current => ({
+                ...current,
+                groups: [...current.groups, createSongTitleInfoGroup(current.groups.filter(g=>g.kind==='info').length + 1)],
+            }));
+            const deleteGroup = (groupIndex) => updateSongTitle(current => {
+                if (current.groups.filter(g=>g.kind==='info').length <= 1) return current;
+                return { ...current, groups: current.groups.filter((_, index)=>index!==groupIndex) };
+            });
+            const addRow = (groupIndex) => updateGroup(groupIndex, group => ({ ...group, rows: [...group.rows, createSongTitleRow()] }));
+            const deleteRow = (groupIndex, rowIndex) => updateGroup(groupIndex, group => group.rows.length <= 1
+                ? group : { ...group, rows: group.rows.filter((_, index)=>index!==rowIndex) });
+            const updateRow = (groupIndex, rowIndex, patch) => updateGroup(groupIndex, group => ({
+                ...group, rows: group.rows.map((row, index)=>index===rowIndex?{...row,...patch}:row),
+            }));
+
+            return (
+                <div className="flex flex-col gap-2.5">
+                    {/* 启用开关 */}
+                    <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer">
+                        <input type="checkbox" checked={songTitle.enabled} onChange={e=>updateSongTitle({...songTitle,enabled:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/>
+                        <span className="text-[10px] text-zinc-300 flex-1">启用歌曲标题</span>
+                    </label>
+
+                    {/* 标题内容 */}
+                    <div className="flex flex-col gap-2 pt-2.5 border-t border-zinc-800">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                            标题内容
+                        </span>
+                        {songTitle.groups.map((group, i) => {
+                            const isTitle = group.kind === 'title';
+                            const canDelete = !isTitle && infoGroups.length > 1;
+                            return (
+                                <div key={`${group.kind}-${i}`} className={"flex flex-col gap-1.5" + (i>0?" pt-2.5 border-t border-zinc-800":"")}>
+                                    {/* 分组头部 */}
+                                    <div className="flex items-center gap-1.5">
+                                        {isTitle
+                                            ? <span className="text-[10px] font-bold text-zinc-400 flex-1">歌名</span>
+                                            : editingGroupIndex === i
+                                                ? <input autoFocus type="text" value={group.name||''} onChange={e=>updateGroup(i,{name:e.target.value})}
+                                                    onBlur={()=>setEditingGroupIndex(null)} onKeyDown={e=>{if(e.key==='Enter')setEditingGroupIndex(null)}}
+                                                    className="flex-1 bg-zinc-800 rounded p-1 text-[10px] border border-indigo-500 outline-none"/>
+                                                : <button type="button" onClick={()=>setEditingGroupIndex(i)}
+                                                    className="flex-1 text-left bg-transparent border-none text-[10px] font-bold text-zinc-300 cursor-pointer p-0 truncate">{group.name||'信息'}</button>
+                                        }
+                                        {!isTitle && <button type="button" onClick={()=>deleteGroup(i)} disabled={!canDelete}
+                                            className={"text-[10px] px-1.5 py-0.5 rounded border-none cursor-pointer "+(canDelete?'text-red-400 hover:text-red-300':'text-zinc-700 cursor-not-allowed')}>✕</button>}
+                                    </div>
+                                    {/* 歌名输入 / 信息行 */}
+                                    {isTitle
+                                        ? <input type="text" value={group.value} onChange={e=>updateGroup(i,{value:e.target.value})} placeholder="歌曲标题（留空不显示）"
+                                            className="bg-zinc-800 rounded p-1.5 text-[10px] border border-zinc-700 outline-none focus:border-indigo-500"/>
+                                        : <div className="flex flex-col gap-1">
+                                            {group.rows.map((row, rowIndex) => {
+                                                const canDelRow = group.rows.length > 1;
+                                                return (
+                                                    <div key={`${i}-${rowIndex}`} className="grid grid-cols-[1fr_40px_1fr_20px] gap-1 items-center">
+                                                        <input type="text" value={row.before} onChange={e=>updateRow(i,rowIndex,{before:e.target.value})} placeholder="前"
+                                                            className="min-w-0 bg-zinc-800 rounded p-1 text-[9px] border border-zinc-700 outline-none"/>
+                                                        <input type="text" value={row.separator} onChange={e=>updateRow(i,rowIndex,{separator:e.target.value})} placeholder="隔"
+                                                            className="min-w-0 bg-zinc-800 rounded p-1 text-[9px] text-center border border-zinc-700 outline-none"/>
+                                                        <input type="text" value={row.after} onChange={e=>updateRow(i,rowIndex,{after:e.target.value})} placeholder="后"
+                                                            className="min-w-0 bg-zinc-800 rounded p-1 text-[9px] border border-zinc-700 outline-none"/>
+                                                        <button type="button" disabled={!canDelRow} onClick={()=>deleteRow(i,rowIndex)}
+                                                            className={"w-5 h-5 border-none bg-transparent flex items-center justify-center p-0 text-xs "+(canDelRow?'text-red-400 cursor-pointer':'text-zinc-700 cursor-not-allowed')}>✕</button>
+                                                    </div>
+                                                );
+                                            })}
+                                            <button type="button" onClick={()=>addRow(i)}
+                                                className="bg-zinc-800 hover:bg-zinc-700 rounded p-1 text-[9px] text-zinc-400 border-none cursor-pointer">＋ 添加行</button>
+                                        </div>
+                                    }
+                                    <SongTitleStyleEditor group={group} onChange={patch=>updateGroup(i, g=>({...g, style:{...g.style, ...patch}}))}/>
+                                </div>
+                            );
+                        })}
+                        <button type="button" onClick={addGroup}
+                            className="w-full border border-dashed border-zinc-700 rounded p-1.5 bg-transparent text-[10px] text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 cursor-pointer">＋ 添加分组</button>
+                    </div>
+
+                    {/* 显示时间 */}
+                    <div className="flex flex-col gap-2 pt-2.5 border-t border-zinc-800">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            显示时间
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-zinc-500 whitespace-nowrap">时长</span>
+                            <input type="number" min="3" max="10" step="0.1" value={songTitle.durationSec} onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v))updateSongTitle({...songTitle,durationSec:Math.min(10,Math.max(3,v))})}}
+                                className="w-14 bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/>
+                            <span className="text-[10px] text-zinc-500">s</span>
+                        </div>
+                        <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer">
+                            <input type="checkbox" checked={songTitle.textFade} onChange={e=>updateSongTitle({...songTitle,textFade:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/>
+                            <span className="text-[10px] text-zinc-300 flex-1">文字淡入淡出</span>
+                        </label>
+                        <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer">
+                            <input type="checkbox" checked={songTitle.prelude.enabled} onChange={e=>updateSongTitle({...songTitle,prelude:{...songTitle.prelude,enabled:e.target.checked}})} className="accent-amber-500 w-3.5 h-3.5"/>
+                            <span className="text-[10px] text-zinc-300 flex-1">时间前补</span>
+                        </label>
+                        {songTitle.prelude.enabled &&
+                            <div className="flex flex-col gap-1.5 ml-2">
+                                <div className="flex items-center gap-1 bg-zinc-800 rounded border border-zinc-700 p-1">
+                                    <input id="song-title-bg-file" type="file" accept="image/*" className="hidden" onChange={e=>{const f=e.target.files[0];if(f)onBackgroundFile(f);e.target.value='';}}/>
+                                    <button type="button" onClick={()=>document.getElementById('song-title-bg-file')?.click()}
+                                        className="flex items-center gap-1 text-[9px] bg-zinc-700 hover:bg-zinc-600 rounded px-2 py-1 border-none cursor-pointer text-zinc-300">选择背景</button>
+                                    <span className="flex-1 truncate text-[9px] text-zinc-500">
+                                        {backgroundImageUrl ? (songTitle.prelude.backgroundImageName||'已选择') : songTitle.prelude.backgroundImageName ? songTitle.prelude.backgroundImageName+'（需重选）' : '请选择文件'}
+                                    </span>
+                                    {(backgroundImageUrl||songTitle.prelude.backgroundImageName) && <button type="button" onClick={onClearBackground}
+                                        className="border-none bg-transparent text-red-400 cursor-pointer text-sm p-0 leading-none">✕</button>}
+                                </div>
+                                <label className="flex items-center gap-2 bg-zinc-800/50 rounded p-1.5 cursor-pointer">
+                                    <input type="checkbox" checked={songTitle.prelude.fadeEnabled} onChange={e=>updateSongTitle({...songTitle,prelude:{...songTitle.prelude,fadeEnabled:e.target.checked}})} className="accent-amber-500 w-3 h-3"/>
+                                    <span className="text-[10px] text-zinc-400 flex-1">背景淡入淡出</span>
+                                </label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            );
+        };
+
+        const formatTimelineTime = (value, decimals = true) => {
+            const number = Number(value) || 0;
+            const sign = number < -0.0005 ? '-' : '';
+            const absolute = Math.abs(number);
+            const minutes = Math.floor(absolute / 60).toString().padStart(2, '0');
+            const seconds = decimals
+                ? (absolute % 60).toFixed(2).padStart(5, '0')
+                : Math.floor(absolute % 60).toString().padStart(2, '0');
+            return `${sign}${minutes}:${seconds}`;
         };
 
         // ==================== 主应用 ====================
@@ -73,21 +327,42 @@
             const [videoUrl, setVideoUrl] = useState(null);
             const [bgImageUrl, setBgImageUrl] = useState(null);
             const [bgImageEnabled, setBgImageEnabled] = useState(false);
+            const [titleBackgroundUrl, setTitleBackgroundUrl] = useState(null);
+            const titleBackgroundUrlRef = useRef(null);
+            const [settingsTab, setSettingsTab] = useState('lyrics');
             const bgImageInputRef = useRef(null);
             const lrcFileInputRef = useRef(null);
             const [config, setConfig] = useState(() => {
                 try {
                     const s = localStorage.getItem(STORAGE_KEY);
-                    if (!s) return CONFIG_DEFAULTS;
+                    if (!s) return normalizeConfig({});
                     const parsed = JSON.parse(s);
                     if (parsed.characterProfiles) for (const k in parsed.characterProfiles) {
                         const p = parsed.characterProfiles[k];
                         if (p && p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; }
                     }
                     return normalizeConfig(parsed);
-                } catch (_) { return CONFIG_DEFAULTS; }
+                } catch (_) { return normalizeConfig({}); }
             });
-            useEffect(() => { try { /* 持久化前剥离 blob URL */ const save = JSON.parse(JSON.stringify(config)); delete save.line2Bottom; if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
+            useEffect(() => { try { /* 持久化前剥离 blob URL 和标题内容 */ const save = JSON.parse(JSON.stringify(normalizeConfig(config))); delete save.line2Bottom; if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } /* 标题内容不入库 */ if (save.songTitle && save.songTitle.groups) for (const g of save.songTitle.groups) { if (g.kind === 'title') g.value = ''; else if (g.rows) for (const r of g.rows) { r.before = ''; r.separator = ''; r.after = ''; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
+
+            const clearTitleBackground = useCallback(() => {
+                if (titleBackgroundUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(titleBackgroundUrlRef.current);
+                titleBackgroundUrlRef.current = null;
+                setTitleBackgroundUrl(null);
+                setConfig(prev => ({ ...prev, songTitle: { ...prev.songTitle, prelude: { ...prev.songTitle.prelude, backgroundImageName: '' } } }));
+            }, []);
+            const selectTitleBackground = useCallback((file) => {
+                if (!file) return;
+                if (titleBackgroundUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(titleBackgroundUrlRef.current);
+                const url = URL.createObjectURL(file);
+                titleBackgroundUrlRef.current = url;
+                setTitleBackgroundUrl(url);
+                setConfig(prev => ({ ...prev, songTitle: { ...prev.songTitle, prelude: { ...prev.songTitle.prelude, backgroundImageName: file.name } } }));
+            }, []);
+            useEffect(() => () => {
+                if (titleBackgroundUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(titleBackgroundUrlRef.current);
+            }, []);
 
             const [showExportModal, setShowExportModal] = useState(false);
             const [expW, setExpW] = useState(1920);
@@ -108,6 +383,9 @@
 
             const entryBuf = useMemo(() => getEntryBuf(config), [config.indicatorEnabled, config.indicatorDuration, config.fadeDurationMs]);
             const parsedData = useMemo(() => parseLyrics(lrcRaw, entryBuf, config), [lrcRaw, entryBuf, config.indicatorEnabled]);
+            const titleTimeline = useMemo(() => getSongTitleTimeline(config.songTitle), [config.songTitle]);
+            const prependDuration = titleTimeline.prepend;
+            const timelineMin = -prependDuration;
 
             // 歌词中实际出现的角色名集合
             const activeRoles = useMemo(() => {
@@ -157,18 +435,17 @@
                 setExporting(true); setShowExportModal(false);
                 setExpProgress(0); setExpEta('初始化...'); cancelRef.current = false;
                 console.log('[Export] 传递: parsedData.length=' + (parsedData?parsedData.length:0), 'config.indicatorEnabled=' + config.indicatorEnabled, 'entryBuf=' + entryBuf);
-                await doExportCanvas({ w:expW, h:expH, fps:expFps, expCodec, expFormat, duration, totalTime:t, videoUrl, bgImageEnabled, bgImageUrl,
+                await doExportCanvas({ w:expW, h:expH, fps:expFps, expCodec, expFormat, duration, totalTime:t, videoUrl, bgImageEnabled, bgImageUrl, titleBackgroundUrl,
                     audioUrl, expAudioBitrate, expAudioSampleRate, expAudioChannels: 2,
-                    parsedData, config, entryBuf,
                     parsedData, config, entryBuf,
                     setExpProgress, setExpEta, setExporting, cancelRef });
             }, [exporting, expW, expH, expFps, expCodec, expFormat, duration, videoUrl, bgImageEnabled, bgImageUrl,
-                audioUrl, expAudioBitrate, expAudioSampleRate,
+                titleBackgroundUrl, audioUrl, expAudioBitrate, expAudioSampleRate,
                 parsedData, config, entryBuf]);
 
             // ---- 工程文件 (.krl) 导入/导出 ----
             const buildKrlConfig = useCallback((filterRoles) => {
-                const exp = JSON.parse(JSON.stringify(config));
+                const exp = JSON.parse(JSON.stringify(normalizeConfig(config)));
                 if (exp.characterProfiles) {
                     for (const k in exp.characterProfiles) {
                         const p = exp.characterProfiles[k];
@@ -238,8 +515,13 @@
                                             merged[k] = imported[k];
                                         }
                                     }
-                                    return merged;
+                                    return normalizeConfig(merged);
                                 });
+                                if (imported.songTitle) {
+                                    if (titleBackgroundUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(titleBackgroundUrlRef.current);
+                                    titleBackgroundUrlRef.current = null;
+                                    setTitleBackgroundUrl(null);
+                                }
                             }
                             catch(e) { console.warn('[KRL] JSON 解析失败:', e); }
                         }
@@ -252,6 +534,7 @@
 
             const audioRef = useRef(null), videoRef = useRef(null), requestRef = useRef(null);
             const oldUrlsRef = useRef({ audio: null, video: null });
+            const preludeClockRef = useRef({ playing: false, originTime: 0, originPerformance: 0 });
             const krlImportRef = useRef(null);
             const [exportMenuOpen, setExportMenuOpen] = useState(false);
             const exportLeaveRef = useRef(null);
@@ -260,6 +543,30 @@
                 const a = audioRef.current;
                 const v = videoRef.current;
                 const pageHidden = document.hidden;
+                const preludeClock = preludeClockRef.current;
+
+                if (preludeClock.playing) {
+                    const nextTime = preludeClock.originTime + (performance.now() - preludeClock.originPerformance) / 1000;
+                    if (nextTime < 0) {
+                        setTime(nextTime);
+                    } else {
+                        preludeClock.playing = false;
+                        setTime(0);
+                        if (a) {
+                            a.currentTime = 0;
+                            a.play().catch(() => setIsPlaying(false));
+                        } else {
+                            setIsPlaying(false);
+                        }
+                        if (v) {
+                            v.currentTime = 0;
+                            v.play().catch(() => {});
+                        }
+                    }
+                    requestRef.current = requestAnimationFrame(animate);
+                    return;
+                }
+
                 const audioPlaying = a && !a.paused && !a.ended;
 
                 // ① 以 audio 为主时钟，驱动歌词时间
@@ -289,10 +596,76 @@
             }, []);
             useEffect(() => { requestRef.current = requestAnimationFrame(animate); return () => cancelAnimationFrame(requestRef.current); }, [animate]);
 
+            const beginPlayback = useCallback(() => {
+                const a = audioRef.current;
+                const v = videoRef.current;
+                let startTime = timeRef.current;
+                if (duration > 0 && startTime >= duration) {
+                    startTime = timelineMin;
+                    setTime(startTime);
+                }
+                if (startTime < 0) {
+                    if (a) { a.pause(); a.currentTime = 0; }
+                    if (v) { v.pause(); v.currentTime = 0; }
+                    preludeClockRef.current = { playing: true, originTime: startTime, originPerformance: performance.now() };
+                    setIsPlaying(true);
+                    return;
+                }
+                preludeClockRef.current.playing = false;
+                if (a) a.play().catch(() => setIsPlaying(false));
+                if (v) v.play().catch(() => {});
+            }, [duration, timelineMin]);
+
+            const pausePlayback = useCallback(() => {
+                preludeClockRef.current.playing = false;
+                audioRef.current?.pause();
+                videoRef.current?.pause();
+                setIsPlaying(false);
+            }, []);
+
+            const seekTimeline = useCallback((rawValue) => {
+                const value = Math.max(timelineMin, Math.min(duration || 0, Number(rawValue) || 0));
+                const wasPlaying = isPlaying;
+                const a = audioRef.current;
+                const v = videoRef.current;
+                if (value < 0) {
+                    if (a) { a.pause(); a.currentTime = 0; }
+                    if (v) { v.pause(); v.currentTime = 0; }
+                    preludeClockRef.current = wasPlaying
+                        ? { playing: true, originTime: value, originPerformance: performance.now() }
+                        : { playing: false, originTime: value, originPerformance: 0 };
+                } else {
+                    preludeClockRef.current.playing = false;
+                    if (a) a.currentTime = value;
+                    if (v) v.currentTime = value;
+                    if (wasPlaying) {
+                        a?.play().catch(() => setIsPlaying(false));
+                        v?.play().catch(() => {});
+                    }
+                }
+                setTime(value);
+            }, [duration, isPlaying, timelineMin]);
+
+            const previousTimelineMinRef = useRef(0);
+            useEffect(() => {
+                const previousMin = previousTimelineMinRef.current;
+                previousTimelineMinRef.current = timelineMin;
+                if (timelineMin < 0 && previousMin === 0 && !isPlaying && Math.abs(timeRef.current) < 0.001) {
+                    setTime(timelineMin);
+                    return;
+                }
+                if (timeRef.current < timelineMin || (timelineMin === 0 && timeRef.current < 0)) {
+                    preludeClockRef.current.playing = false;
+                    setIsPlaying(false);
+                    setTime(timelineMin);
+                }
+            }, [timelineMin, isPlaying]);
+
             // ③ visibilitychange：切回标签页时立即矫正所有状态（进度条/时间UI/video）
             useEffect(() => {
                 const onVis = () => {
                     if (document.hidden) return;
+                    if (preludeClockRef.current.playing) return;
                     const a = audioRef.current;
                     const v = videoRef.current;
                     if (!a) return;
@@ -351,7 +724,7 @@
                                                 const a = audioRef.current, v = videoRef.current;
                                                 if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
                                                 if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
-                                                setIsPlaying(false); setTime(0);
+                                                preludeClockRef.current.playing=false; setIsPlaying(false); setTime(timelineMin);
                                                 // 清理旧 blob URL 防止内存泄漏
                                                 if (oldUrlsRef.current.audio && oldUrlsRef.current.audio.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.audio);
                                                 if (oldUrlsRef.current.video && oldUrlsRef.current.video.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.video);
@@ -363,7 +736,7 @@
                                             const a=audioRef.current,v=videoRef.current;
                                             if(a){a.pause();a.removeAttribute('src');a.load();}
                                             if(v){v.pause();v.removeAttribute('src');v.load();}
-                                            setIsPlaying(false); setTime(0);
+                                            preludeClockRef.current.playing=false; setIsPlaying(false); setTime(timelineMin);
                                             if(oldUrlsRef.current.audio&&oldUrlsRef.current.audio.startsWith('blob:'))URL.revokeObjectURL(oldUrlsRef.current.audio);
                                             if(oldUrlsRef.current.video&&oldUrlsRef.current.video.startsWith('blob:'))URL.revokeObjectURL(oldUrlsRef.current.video);
                                             oldUrlsRef.current={audio:null,video:null};
@@ -393,6 +766,12 @@
                                     {bgImageEnabled&&<div className="flex items-center gap-2 ml-2"><span className="text-[10px] text-zinc-500 w-10">透明度</span><input type="range" min="0" max="1" step="0.05" value={config.bgImageOpacity} onChange={e=>setConfig({...config,bgImageOpacity:parseFloat(e.target.value)})} className="flex-1 accent-amber-500 h-1"/><span className="text-[10px] text-zinc-500 w-8 text-right">{Math.round(config.bgImageOpacity*100)}%</span></div>}
                                 </section>
 
+                                <div className="settings-tab-bar">
+                                    <button type="button" className={settingsTab==='lyrics'?'active':''} onClick={()=>setSettingsTab('lyrics')}>歌词设置</button>
+                                    <button type="button" className={settingsTab==='title'?'active':''} onClick={()=>setSettingsTab('title')}>歌曲标题</button>
+                                </div>
+                                {settingsTab==='lyrics'?<>
+
                                 {/* 字体排版 */}
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Type className="w-3 h-3"/> 字体排版</label>
@@ -411,19 +790,7 @@
                                                     className="absolute right-0 top-0 h-full w-40 opacity-0 cursor-pointer text-[11px]"
                                                     style={{ colorScheme: 'dark' }}
                                                 >
-                                                    <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
-                                                    <option value="'SimHei', sans-serif">黑体</option>
-                                                    <option value="'Kaiti', serif">楷体</option>
-                                                    <option value="'Noto Sans JP', sans-serif">Noto Sans JP</option>
-                                                    <option value="'Noto Serif JP', serif">Noto Serif JP</option>
-                                                    <option value="'Yu Gothic Medium', sans-serif">游ゴシック</option>
-                                                    <option value="'Yu Mincho Medium', serif">游明朝</option>
-                                                    <option value="'MotoyaLMaru W3 Mono', monospace">モトヤL丸 W3 Mono</option>
-                                                    <option value="'UD Digi Kyokasho NP-R', sans-serif">UD Digital 教科书体</option>
-                                                    <option value="'寒蝉全圆体', sans-serif">寒蝉全圆体</option>
-                                                    <option value="'小濑字体P JP', sans-serif">小濑字体</option>
-                                                    <option value="'RiiPopkaku', sans-serif">りいポップ角</option>
-                                                    <option value="system-ui">系统默认</option>
+                                                    <FontOptions />
                                                 </select>
                                                 <span className="absolute inset-0 flex items-center justify-center text-zinc-500 pointer-events-none text-[10px]">▼</span>
                                             </div>
@@ -618,6 +985,8 @@
                                     </div>
                                 </section>
 
+                                </>:<SongTitleSettings config={config} setConfig={setConfig} backgroundImageUrl={titleBackgroundUrl} onBackgroundFile={selectTitleBackground} onClearBackground={clearTitleBackground}/>}
+
                                 {/* 项目管理 */}
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.FolderOpen className="w-3 h-3"/> 项目管理</label>
@@ -633,7 +1002,7 @@
                                             )}
                                         </div>
                                     </div>
-                                    <button onClick={()=>{setConfig(CONFIG_DEFAULTS);try{localStorage.removeItem(STORAGE_KEY);}catch(_){}}} className="w-full bg-zinc-800 hover:bg-red-900/30 text-[10px] text-zinc-500 hover:text-red-400 py-1.5 rounded border border-zinc-700 hover:border-red-800 transition-colors">重置全部设定</button>
+                                    <button onClick={()=>{setConfig(normalizeConfig({}));try{localStorage.removeItem(STORAGE_KEY);}catch(_){}}} className="w-full bg-zinc-800 hover:bg-red-900/30 text-[10px] text-zinc-500 hover:text-red-400 py-1.5 rounded border border-zinc-700 hover:border-red-800 transition-colors">重置全部设定</button>
                                 </section>
                             </div>
                         </div>
@@ -644,20 +1013,21 @@
                                 {bgImageEnabled && bgImageUrl && !videoUrl && (<><img src={bgImageUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',filter:'blur(20px) brightness(0.4)'}}/><img src={bgImageUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain',opacity:config.bgImageOpacity??1}}/></>)}
                                 {!videoUrl && !bgImageEnabled && <div style={{position:'absolute',inset:0,backgroundColor:config.bgColor}}/>}
                                 {videoUrl && <video key={videoUrl} ref={videoRef} src={videoUrl} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'contain'}} muted playsInline/>}
-                                {activeLines.l1 && <div className="absolute flex items-end" style={{left:config.line1X,top:config.line1Y}}><LyricLine line={activeLines.l1} config={config} currentTime={time}/></div>}
-                                {activeLines.l2 && <div className="absolute flex items-end" style={{right:config.line2Right,top:getLine2Y(config)}}><LyricLine line={activeLines.l2} config={config} currentTime={time}/></div>}
+                                <SongTitleLayer config={config} currentTime={time} backgroundImageUrl={titleBackgroundUrl}/>
+                                {(prependDuration<=0||time>=0)&&activeLines.l1 && <div className="absolute flex items-end" style={{left:config.line1X,top:config.line1Y}}><LyricLine line={activeLines.l1} config={config} currentTime={time}/></div>}
+                                {(prependDuration<=0||time>=0)&&activeLines.l2 && <div className="absolute flex items-end" style={{right:config.line2Right,top:getLine2Y(config)}}><LyricLine line={activeLines.l2} config={config} currentTime={time}/></div>}
                             </div>
                             </div>
                             <div className="player-controls mt-4 w-full max-w-3xl bg-zinc-900/80 backdrop-blur p-5 rounded-3xl border border-zinc-800 flex items-center gap-6 shadow-xl">
-                                <button onClick={()=>{if(isPlaying){audioRef.current?.pause();videoRef.current?.pause();}else{audioRef.current?.play()?.catch(()=>{});videoRef.current?.play()?.catch(()=>{});}}} className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500 transition-all active:scale-95">
+                                <button aria-label={isPlaying?'暂停':'播放'} data-testid="playback-toggle" onClick={()=>{if(isPlaying)pausePlayback();else beginPlayback();}} className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-500 transition-all active:scale-95">
                                     {isPlaying?<Icons.Pause className="w-6 h-6 fill-white text-white"/>:<Icons.Play className="w-6 h-6 ml-1 fill-white text-white"/>}
                                 </button>
                                 <div className="flex-1 space-y-2">
                                     <div className="flex justify-between font-mono text-[10px] text-zinc-500 font-bold">
-                                        <span className="text-indigo-400">{Math.floor(time/60).toString().padStart(2,'0')}:{(time%60).toFixed(2).padStart(5,'0')}</span>
-                                        <span>{Math.floor(duration/60).toString().padStart(2,'0')}:{Math.floor(duration%60).toString().padStart(2,'0')}</span>
+                                        <span className="text-indigo-400">{formatTimelineTime(time)}</span>
+                                        <span>{formatTimelineTime(duration,false)}</span>
                                     </div>
-                                    <input type="range" min="0" max={duration||0} step="0.001" value={time} onChange={e=>{const v=parseFloat(e.target.value);if(audioRef.current)audioRef.current.currentTime=v;if(videoRef.current)videoRef.current.currentTime=v;setTime(v);}} className="w-full accent-indigo-500 h-1.5 cursor-pointer bg-zinc-800 rounded-lg appearance-none"/>
+                                    <input aria-label="播放时间轴" data-testid="timeline-slider" type="range" min={timelineMin} max={duration||0} step="0.001" value={time} onChange={e=>seekTimeline(parseFloat(e.target.value))} className="w-full accent-indigo-500 h-1.5 cursor-pointer bg-zinc-800 rounded-lg appearance-none"/>
                                 </div>
                             </div>
                             {exporting && <div className="export-overlay">
@@ -774,7 +1144,7 @@
                         </div>}
                     </div>
                     {/* key 强制 React 在 URL 变化时销毁旧元素、创建新元素，彻底避免媒体元素内部状态残留 */}
-                    <audio key={audioUrl || 'no-audio'} ref={audioRef} src={audioUrl || undefined} onDurationChange={e=>setDuration(e.target.duration)} onPlay={()=>setIsPlaying(true)} onPause={()=>setIsPlaying(false)} onEnded={()=>setIsPlaying(false)}/>
+                    <audio key={audioUrl || 'no-audio'} ref={audioRef} src={audioUrl || undefined} onDurationChange={e=>setDuration(e.target.duration)} onPlay={()=>setIsPlaying(true)} onPause={()=>{if(!preludeClockRef.current.playing)setIsPlaying(false)}} onEnded={()=>setIsPlaying(false)}/>
                 </div>
             );
         };

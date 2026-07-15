@@ -3,6 +3,87 @@
 
 const h = React.createElement;
 
+function SongTitleLayer({ config, currentTime, backgroundImageUrl }) {
+    const songTitle = config?.songTitle;
+    if (!songTitle?.enabled) return null;
+
+    const prelude = getPreludeBackgroundState(currentTime, songTitle);
+    const textOpacity = getSongTitleTextOpacity(currentTime, songTitle, config);
+    const layout = textOpacity > 0
+        ? measureSongTitleLayout(resolveSongTitleLayout(songTitle))
+        : [];
+    if (!prelude.visible && layout.length === 0) return null;
+
+    const children = [];
+    if (prelude.visible) {
+        const backgroundChildren = [];
+        if (backgroundImageUrl) {
+            backgroundChildren.push(h('img', {
+                key: 'prelude-image',
+                src: backgroundImageUrl,
+                alt: '',
+                style: {
+                    position: 'absolute', inset: 0, width: '100%', height: '100%',
+                    objectFit: 'cover', opacity: prelude.imageAlpha,
+                },
+            }));
+        }
+        children.push(h('div', {
+            key: 'prelude-background',
+            style: {
+                position: 'absolute', inset: 0, backgroundColor: '#000000',
+                opacity: prelude.layerAlpha,
+            },
+        }, ...backgroundChildren));
+    }
+
+    if (layout.length > 0) {
+        const lineNodes = [];
+        for (const group of layout) {
+            const { style, fontWeight } = group;
+            const stroke = genStroke(style.strokeColor, style.strokeWidth);
+            group.measuredLines.forEach(({ chars, widths, startX, topY }, lineIndex) => {
+                lineNodes.push(h('div', {
+                    key: `${group.kind}-${group.index}-${lineIndex}`,
+                    style: {
+                        position: 'absolute',
+                        left: `${startX}px`,
+                        top: `${topY}px`,
+                        display: 'inline-flex',
+                        alignItems: 'flex-start',
+                        whiteSpace: 'pre',
+                        fontFamily: style.fontFamily,
+                        fontSize: `${style.fontSize}px`,
+                        fontWeight,
+                        lineHeight: '1',
+                        color: style.color,
+                        textShadow: stroke,
+                        fontKerning: 'none',
+                        fontVariantLigatures: 'none',
+                        fontOpticalSizing: 'none',
+                    },
+                }, ...chars.map((char, charIndex) => h('span', {
+                    key: charIndex,
+                    style: {
+                        display: 'inline-block',
+                        flexShrink: 0,
+                        width: `${widths[charIndex]}px`,
+                        marginRight: charIndex < chars.length - 1 ? `${style.letterSpacing}px` : 0,
+                    },
+                }, char))));
+            });
+        }
+        children.push(h('div', {
+            key: 'title-text',
+            style: { position: 'absolute', inset: 0, opacity: textOpacity },
+        }, ...lineNodes));
+    }
+
+    return h('div', {
+        style: { position: 'absolute', inset: 0, pointerEvents: 'none' },
+    }, ...children);
+}
+
 // Chromium 需要 +0.5px 防 subpixel 渗出，Firefox 反会因此遮罩不足
 const CLIP_OVERPULL = /Firefox/i.test(navigator.userAgent) ? '-0.5px' : '0.5px';
 

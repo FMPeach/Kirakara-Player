@@ -6,12 +6,15 @@ async function doExportCanvas({
     w, h, fps, expCodec, expFormat,
     duration, totalTime,
     videoUrl, bgImageEnabled, bgImageUrl,
+    titleBackgroundUrl,
     audioUrl, expAudioBitrate, expAudioSampleRate, expAudioChannels,
     parsedData, config, entryBuf,
     setExpProgress, setExpEta, setExporting,
     cancelRef,
 }) {
-    const totalFrames = Math.ceil(totalTime * fps);
+    const prependDuration = getSongTitlePrependDuration(config.songTitle);
+    const outputTotalTime = totalTime + prependDuration;
+    const totalFrames = Math.ceil(outputTotalTime * fps);
 
     const download = (blob, filename) => {
         const url = URL.createObjectURL(blob);
@@ -34,6 +37,7 @@ async function doExportCanvas({
         renderer = KiraExport.Renderer({
             width: w, height: h,
             bgImageEnabled, bgImageUrl,
+            titleBackgroundUrl,
         });
         await renderer.init();
 
@@ -83,20 +87,30 @@ async function doExportCanvas({
         console.log('[Export] ' + w + 'x' + h + ' @' + fps + 'fps  ' + codecLabel + '  ' + totalFrames + 'frames  ' + (hasVideo ? 'video+' : ''));
 
         // ========== 渲染循环 ==========
+        let firstVideoFrame = null;
         for (let i = 0; i < totalFrames; i++) {
             if (cancelRef && cancelRef.current) { console.log('[Export] 用户取消'); break; }
             const targetTime = i / fps;
+            const projectTime = targetTime - prependDuration;
 
             // 获取视频帧
             let videoFrame = null;
             if (decoder) {
-                try { videoFrame = await decoder.getFrame(targetTime); } catch (_) { }
+                try {
+                    if (projectTime <= 0) {
+                        if (!firstVideoFrame) firstVideoFrame = await decoder.getFrame(0);
+                        videoFrame = firstVideoFrame;
+                    } else {
+                        videoFrame = await decoder.getFrame(projectTime);
+                    }
+                } catch (_) { }
             }
 
             // 渲染
             renderer.renderFrame({
                 videoFrame,
                 targetTime,
+                projectTime,
                 parsedData,
                 config,
                 entryBuf,
@@ -156,24 +170,31 @@ async function doExportCanvas({
                 // 解码完整音频
                 const audioResp = await fetch(audioUrl);
                 const audioBuf = await audioResp.arrayBuffer();
-                const audioCtx = new OfflineAudioContext({ numberOfChannels: channels, length: sampleRate * totalTime, sampleRate });
+                const audioCtx = new OfflineAudioContext({ numberOfChannels: channels, length: Math.max(1, Math.ceil(sampleRate * totalTime)), sampleRate });
                 const audioBuffer = await audioCtx.decodeAudioData(audioBuf.slice(0));
 
-                const totalFrames = audioBuffer.length;  // 每声道帧数
+                const prependFrames = Math.round(prependDuration * sampleRate);
+                const outputAudioFrames = prependFrames + audioBuffer.length;
                 const FRAME_SIZE = afmt === 'mp4' ? 1024 : 960; // AAC=1024, Opus=960 (20ms@48kHz)
 
-                // 逐帧编码
-                for (let offset = 0; offset < totalFrames; offset += FRAME_SIZE) {
+                // 逐帧编码：前补区写入真实静音，之后接原始音频
+                for (let offset = 0; offset < outputAudioFrames; offset += FRAME_SIZE) {
                     if (cancelRef && cancelRef.current) break;
-                    const framesThisChunk = Math.min(FRAME_SIZE, totalFrames - offset);
+                    const framesThisChunk = Math.min(FRAME_SIZE, outputAudioFrames - offset);
                     if (framesThisChunk <= 0) break;
 
                     const t = offset / sampleRate;
                     const planarBuf = new ArrayBuffer(framesThisChunk * channels * 4); // f32 = 4 bytes
                     const view = new Float32Array(planarBuf);
                     for (let ch = 0; ch < channels; ch++) {
-                        const chData = audioBuffer.getChannelData(ch);
-                        view.set(chData.slice(offset, offset + framesThisChunk), ch * framesThisChunk);
+                        const sourceChannel = Math.min(ch, Math.max(0, audioBuffer.numberOfChannels - 1));
+                        const chData = audioBuffer.getChannelData(sourceChannel);
+                        const sourceStart = Math.max(0, offset - prependFrames);
+                        const sourceEnd = Math.min(audioBuffer.length, offset + framesThisChunk - prependFrames);
+                        if (sourceEnd > sourceStart) {
+                            const destinationStart = Math.max(0, prependFrames - offset);
+                            view.set(chData.subarray(sourceStart, sourceEnd), ch * framesThisChunk + destinationStart);
+                        }
                     }
 
                     const audioData = new AudioData({
@@ -195,7 +216,7 @@ async function doExportCanvas({
         }
 
         // 用编码后实际数据计算时长，避免 header Duration 与实际内容不一致导致 seek 异常
-        let actualDurationMs = totalTime * 1000;
+        let actualDurationMs = outputTotalTime * 1000;
         if (encChunks.length > 0) {
             const lastV = encChunks[encChunks.length - 1];
             actualDurationMs = (lastV.timestamp + Math.round(1_000_000 / fps)) / 1000;
