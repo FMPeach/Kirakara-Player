@@ -317,6 +317,37 @@
             return `${sign}${minutes}:${seconds}`;
         };
 
+        const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = String(reader.result || '');
+                const separator = result.indexOf(',');
+                if (separator < 0) reject(new Error('图片 Base64 编码失败'));
+                else resolve(result.slice(separator + 1));
+            };
+            reader.onerror = () => reject(reader.error || new Error('图片读取失败'));
+            reader.readAsDataURL(blob);
+        });
+
+        const imageUrlToKrlImage = async (url, name) => {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`图片读取失败 (${response.status})`);
+            const blob = await response.blob();
+            return {
+                name: name || 'image',
+                mime: blob.type || 'application/octet-stream',
+                base64: await blobToBase64(blob),
+            };
+        };
+
+        const krlImageToBlob = (image) => {
+            if (!image || typeof image !== 'object' || typeof image.base64 !== 'string') return null;
+            const binary = atob(image.base64.replace(/\s/g, ''));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return new Blob([bytes], { type: image.mime || 'application/octet-stream' });
+        };
+
         // ==================== 主应用 ====================
         const App = () => {
             const [lrcRaw, setLrcRaw] = useState('');
@@ -329,6 +360,7 @@
             const [bgImageEnabled, setBgImageEnabled] = useState(false);
             const [titleBackgroundUrl, setTitleBackgroundUrl] = useState(null);
             const titleBackgroundUrlRef = useRef(null);
+            const roleImageUrlsRef = useRef(new Set());
             const [settingsTab, setSettingsTab] = useState('lyrics');
             const bgImageInputRef = useRef(null);
             const lrcFileInputRef = useRef(null);
@@ -339,12 +371,51 @@
                     const parsed = JSON.parse(s);
                     if (parsed.characterProfiles) for (const k in parsed.characterProfiles) {
                         const p = parsed.characterProfiles[k];
-                        if (p && p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; }
+                        if (p && typeof p.image === 'string' && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; }
                     }
                     return normalizeConfig(parsed);
                 } catch (_) { return normalizeConfig({}); }
             });
-            useEffect(() => { try { /* 持久化前剥离 blob URL 和标题内容 */ const save = JSON.parse(JSON.stringify(normalizeConfig(config))); delete save.line2Bottom; if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } /* 标题内容不入库 */ if (save.songTitle && save.songTitle.groups) for (const g of save.songTitle.groups) { if (g.kind === 'title') g.value = ''; else if (g.rows) for (const r of g.rows) { r.before = ''; r.separator = ''; r.after = ''; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
+            useEffect(() => { try { /* 持久化前剥离 blob URL 和标题内容 */ const save = JSON.parse(JSON.stringify(normalizeConfig(config))); delete save.line2Bottom; if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && typeof p.image === 'string' && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } /* 标题内容不入库 */ if (save.songTitle && save.songTitle.groups) for (const g of save.songTitle.groups) { if (g.kind === 'title') g.value = ''; else if (g.rows) for (const r of g.rows) { r.before = ''; r.separator = ''; r.after = ''; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
+
+            const createRoleImageUrl = useCallback((blob) => {
+                const url = URL.createObjectURL(blob);
+                roleImageUrlsRef.current.add(url);
+                return url;
+            }, []);
+            const selectRoleImage = useCallback((roleName, file) => {
+                if (!file) return;
+                const url = createRoleImageUrl(file);
+                setConfig(prev => ({
+                    ...prev,
+                    characterProfiles: {
+                        ...(prev.characterProfiles || {}),
+                        [roleName]: { ...(prev.characterProfiles?.[roleName] || {}), image: url, imageName: file.name },
+                    },
+                }));
+            }, [createRoleImageUrl]);
+            const clearRoleImage = useCallback((roleName) => {
+                setConfig(prev => ({
+                    ...prev,
+                    characterProfiles: {
+                        ...(prev.characterProfiles || {}),
+                        [roleName]: { ...(prev.characterProfiles?.[roleName] || {}), image: undefined, imageName: undefined },
+                    },
+                }));
+            }, []);
+            useEffect(() => {
+                const used = new Set(Object.values(config.characterProfiles || {}).map(profile => profile?.image).filter(Boolean));
+                for (const url of roleImageUrlsRef.current) {
+                    if (!used.has(url)) {
+                        URL.revokeObjectURL(url);
+                        roleImageUrlsRef.current.delete(url);
+                    }
+                }
+            }, [config.characterProfiles]);
+            useEffect(() => () => {
+                for (const url of roleImageUrlsRef.current) URL.revokeObjectURL(url);
+                roleImageUrlsRef.current.clear();
+            }, []);
 
             const clearTitleBackground = useCallback(() => {
                 if (titleBackgroundUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(titleBackgroundUrlRef.current);
@@ -444,13 +515,9 @@
                 parsedData, config, entryBuf]);
 
             // ---- 工程文件 (.krl) 导入/导出 ----
-            const buildKrlConfig = useCallback((filterRoles) => {
+            const buildKrlConfig = useCallback(async (filterRoles) => {
                 const exp = JSON.parse(JSON.stringify(normalizeConfig(config)));
                 if (exp.characterProfiles) {
-                    for (const k in exp.characterProfiles) {
-                        const p = exp.characterProfiles[k];
-                        if (p && p.image && p.image.startsWith('blob:')) { delete p.image; delete p.imageName; }
-                    }
                     // 导出工程时只保留当前歌词中出现的角色（null=模板导出 保留全部）
                     if (filterRoles !== null) {
                         const filtered = {};
@@ -459,29 +526,55 @@
                         }
                         exp.characterProfiles = filtered;
                     }
+                    for (const k in exp.characterProfiles) {
+                        const p = exp.characterProfiles[k];
+                        const imageUrl = typeof p?.image === 'string' ? p.image : '';
+                        const imageName = p?.imageName;
+                        if (imageUrl) p.image = await imageUrlToKrlImage(imageUrl, imageName);
+                        else delete p.image;
+                        delete p.imageName;
+                    }
+                }
+                const prelude = exp.songTitle?.prelude;
+                if (prelude) {
+                    const imageName = prelude.backgroundImageName;
+                    delete prelude.backgroundImageName;
+                    if (titleBackgroundUrl) {
+                        prelude.backgroundImage = await imageUrlToKrlImage(titleBackgroundUrl, imageName);
+                    } else {
+                        delete prelude.backgroundImage;
+                    }
                 }
                 return JSON.stringify(exp, null, 4);
-            }, [config]);
+            }, [config, titleBackgroundUrl]);
 
-            const exportAsTemplate = useCallback(() => {
-                const json = buildKrlConfig(null);
-                const content = `config ${json}\n`;
+            const downloadKrl = useCallback((content, fileName) => {
                 const blob = new Blob([content], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = 'template.krl';
+                const a = document.createElement('a'); a.href = url; a.download = fileName;
                 document.body.appendChild(a); a.click();
                 setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-            }, [buildKrlConfig]);
+            }, []);
 
-            const exportAsProject = useCallback(() => {
-                const json = buildKrlConfig(activeRoles);
-                const content = `config ${json}\n\n\n${lrcRaw}`;
-                const blob = new Blob([content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = 'project.krl';
-                document.body.appendChild(a); a.click();
-                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-            }, [buildKrlConfig, lrcRaw, activeRoles]);
+            const exportAsTemplate = useCallback(async () => {
+                try {
+                    const json = await buildKrlConfig(null);
+                    downloadKrl(`config ${json}\n`, 'template.krl');
+                } catch (error) {
+                    console.error('[KRL] 模板导出失败:', error);
+                    alert(`模板导出失败：${error.message || error}`);
+                }
+            }, [buildKrlConfig, downloadKrl]);
+
+            const exportAsProject = useCallback(async () => {
+                try {
+                    const json = await buildKrlConfig(activeRoles);
+                    downloadKrl(`config ${json}\n\n\n${lrcRaw}`, 'project.krl');
+                } catch (error) {
+                    console.error('[KRL] 工程导出失败:', error);
+                    alert(`工程导出失败：${error.message || error}`);
+                }
+            }, [buildKrlConfig, downloadKrl, lrcRaw, activeRoles]);
 
             const importKrl = useCallback((file) => {
                 const r = new FileReader();
@@ -502,6 +595,32 @@
                             const json = raw.replace(/,(\s*[}\]])/g, '$1');
                             try {
                                 const imported = JSON.parse(json);
+                                let importedTitleBackgroundUrl = null;
+                                const importedPrelude = imported.songTitle?.prelude;
+                                if (importedPrelude) {
+                                    const image = importedPrelude.backgroundImage;
+                                    const blob = krlImageToBlob(image);
+                                    if (blob) {
+                                        importedTitleBackgroundUrl = URL.createObjectURL(blob);
+                                        importedPrelude.backgroundImageName = image.name || 'image';
+                                    }
+                                    delete importedPrelude.backgroundImage;
+                                }
+                                if (imported.characterProfiles && typeof imported.characterProfiles === 'object') {
+                                    for (const roleName in imported.characterProfiles) {
+                                        const profile = imported.characterProfiles[roleName];
+                                        if (!profile || typeof profile !== 'object') continue;
+                                        const image = profile.image;
+                                        const blob = krlImageToBlob(image);
+                                        if (blob) {
+                                            profile.image = createRoleImageUrl(blob);
+                                            profile.imageName = image.name || 'image';
+                                        } else if (image && typeof image === 'object') {
+                                            delete profile.image;
+                                            delete profile.imageName;
+                                        }
+                                    }
+                                }
                                 // 剔除空字符串值：仅当默认值非空时才回退，默认即为空的字段（如前缀/分隔符/后缀）允许覆盖为空
                                 for (const k in imported) {
                                     if (imported[k] === '' && CONFIG_DEFAULTS[k] !== '' && CONFIG_DEFAULTS[k] != null) delete imported[k];
@@ -519,8 +638,8 @@
                                 });
                                 if (imported.songTitle) {
                                     if (titleBackgroundUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(titleBackgroundUrlRef.current);
-                                    titleBackgroundUrlRef.current = null;
-                                    setTitleBackgroundUrl(null);
+                                    titleBackgroundUrlRef.current = importedTitleBackgroundUrl;
+                                    setTitleBackgroundUrl(importedTitleBackgroundUrl);
                                 }
                             }
                             catch(e) { console.warn('[KRL] JSON 解析失败:', e); }
@@ -530,7 +649,7 @@
                     }
                 };
                 r.readAsText(file);
-            }, []);
+            }, [createRoleImageUrl]);
 
             const audioRef = useRef(null), videoRef = useRef(null), requestRef = useRef(null);
             const oldUrlsRef = useRef({ audio: null, video: null });
@@ -879,12 +998,12 @@
                                                     {useImage
                                                         ? <div className="flex items-center gap-1 flex-1 min-w-0 bg-zinc-700 rounded border border-zinc-600 pl-0.5 pr-1 py-0.5">
                                                             <input type="file" accept="image/*" className="hidden" id={`img-file-${roleName}`}
-                                                                onChange={e=>{const f=e.target.files[0];if(f)updateRole({image:URL.createObjectURL(f), imageName:f.name});}} />
+                                                                onChange={e=>{const f=e.target.files[0];if(f)selectRoleImage(roleName,f);e.target.value='';}} />
                                                             <button className="text-[9px] bg-zinc-600 hover:bg-zinc-500 text-zinc-300 rounded px-1.5 py-0.5 flex-shrink-0 border-none cursor-pointer"
                                                                 onClick={()=>document.getElementById(`img-file-${roleName}`)?.click()}>选择</button>
                                                             <span className={`text-[9px] flex-1 truncate ${p.image?'text-zinc-300':'text-zinc-600'}`}>{p.imageName || (p.image ? '已选图' : '未选择')}</span>
                                                             {p.image && <button className="text-[9px] text-red-400 hover:text-red-300 flex-shrink-0 bg-none border-none cursor-pointer"
-                                                                onClick={()=>updateRole({image:undefined, imageName:undefined})}>✕</button>}
+                                                                onClick={()=>clearRoleImage(roleName)}>✕</button>}
                                                         </div>
                                                         : <div className="flex items-center gap-1 flex-1 min-w-0">
                                                             <span className="text-[8px] text-zinc-500 flex-shrink-0">外显名</span>
@@ -1098,11 +1217,11 @@
                                                     {useImage
                                                         ? <div style={{display:'flex',alignItems:'center',gap:5,flex:1,background:'#27272a',border:'1px solid #3f3f46',borderRadius:6,padding:'2px 6px'}}>
                                                             <input type="file" accept="image/*" style={{display:'none'}} id={`all-img-file-${roleName}`}
-                                                                onChange={e=>{const f=e.target.files[0];if(f)updateRole({image:URL.createObjectURL(f), imageName:f.name});}} />
+                                                                onChange={e=>{const f=e.target.files[0];if(f)selectRoleImage(roleName,f);e.target.value='';}} />
                                                             <button className="chip off" style={{padding:'2px 6px',fontSize:10}}
                                                                 onClick={()=>document.getElementById(`all-img-file-${roleName}`)?.click()}>📁 选择</button>
                                                             <span style={{fontSize:10,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:p.image?'#d4d4d8':'#71717a'}}>{p.imageName || (p.image ? '已选图' : '未选择')}</span>
-                                                            {p.image && <button className="btn-del" onClick={()=>updateRole({image:undefined,imageName:undefined})}>✕</button>}
+                                                            {p.image && <button className="btn-del" onClick={()=>clearRoleImage(roleName)}>✕</button>}
                                                         </div>
                                                         : <div style={{display:'flex',alignItems:'center',gap:4,flex:1}}>
                                                             <label>外显名</label>
