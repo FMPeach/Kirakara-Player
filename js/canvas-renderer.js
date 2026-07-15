@@ -250,7 +250,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     if (!profile.showLabel) continue;
                     const labelScale = (profile.labelScale || 100) / 100;
                     const labelFs = Math.round(fs * labelScale);
-                    visibleLabels.push({ rk, profile, labelFs, offsetY: profile.imageOffsetY || 0 });
+                    visibleLabels.push({ rk, profile, labelScale, labelFs, offsetY: profile.imageOffsetY || 0 });
                 }
 
                 if (visibleLabels.length > 0) {
@@ -261,22 +261,27 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const getRoleColor = (p) => p.displayColor || p.colorBefore || config.colorBefore;
                     const getRoleStroke = (p) => p.labelStrokeColor || config.strokeColorBefore;
 
-                    // 辅助：添加字符级标签项（标签内字符紧贴，末尾 gap=ls+2，匹配 DOM 行为）
-                    const addTextLabel = (text, color, stroke, fsVal) => {
+                    // 文字按主字样式排成一个布局项，绘制时以基线为锚点整体缩放。
+                    const addTextLabel = (text, color, stroke, scale, trailingGap = ls + 2, profile = null, rk = null) => {
+                        const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
                         const chars = [...text];
-                        chars.forEach((ch, ci) => {
-                            const chW = measureTotalWidth(ch, fsVal, ff, 0, labelFw.trim() || 'normal');
-                            layoutItems.push({ type: 'label', isImage: false, profile: null, rk: null, fs: fsVal, offsetY: 0, w: chW, text: ch, _labelColor: color, _labelStroke: stroke, _gapAfter: ci === chars.length - 1 ? ls + 2 : 0 });
+                        const widths = chars.map(ch => measureTotalWidth(ch, fs, ff, 0, labelFw.trim() || 'normal'));
+                        const baseWidth = widths.reduce((sum, width) => sum + width, 0) + Math.max(0, chars.length - 1) * ls;
+                        layoutItems.push({
+                            type: 'label', isImage: false, profile, rk,
+                            fs, scale: safeScale, offsetY: 0, w: baseWidth * safeScale,
+                            text, chars, widths,
+                            _labelColor: color, _labelStroke: stroke, _gapAfter: trailingGap,
                         });
                     };
 
                     // 前缀（跟随第一个角色颜色）
                     if (prefix) {
-                        addTextLabel(prefix, getRoleColor(visibleLabels[0].profile), getRoleStroke(visibleLabels[0].profile), visibleLabels[0].labelFs);
+                        addTextLabel(prefix, getRoleColor(visibleLabels[0].profile), getRoleStroke(visibleLabels[0].profile), visibleLabels[0].labelScale);
                     }
 
                     for (let vi = 0; vi < visibleLabels.length; vi++) {
-                        const { rk, profile, labelFs, offsetY } = visibleLabels[vi];
+                        const { rk, profile, labelScale, labelFs, offsetY } = visibleLabels[vi];
 
                         if (profile.imageMode && profile.image) {
                             let img = window._labelImgCache[profile.image];
@@ -289,23 +294,20 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             layoutItems.push({ type: 'label', isImage: true, profile, rk, fs: labelFs, offsetY, w: marginL + imgW + marginR, marginL, imgW, img, _gapAfter: ls + 2 });
                         } else {
                             const labelText = profile.displayName || rk;
-                            const chars = [...labelText];
-                            chars.forEach((ch, ci) => {
-                                const chW = measureTotalWidth(ch, labelFs, ff, 0, labelFw.trim() || 'normal');
-                                layoutItems.push({ type: 'label', isImage: false, profile, rk, fs: labelFs, offsetY, w: chW, text: ch, _gapAfter: ci === chars.length - 1 ? ls + 2 : 0 });
-                            });
+                            const trailingGap = vi === visibleLabels.length - 1 && !suffix ? ls : ls + 2;
+                            addTextLabel(labelText, getRoleColor(profile), getRoleStroke(profile), labelScale, trailingGap, profile, rk);
                         }
 
                         // 分隔符（跟随前一个角色，即当前角色）
                         if (sep && vi < visibleLabels.length - 1) {
-                            addTextLabel(sep, getRoleColor(profile), getRoleStroke(profile), labelFs);
+                            addTextLabel(sep, getRoleColor(profile), getRoleStroke(profile), labelScale);
                         }
                     }
 
                     // 后缀（跟随最后一个角色颜色）
                     if (suffix) {
                         const last = visibleLabels[visibleLabels.length - 1];
-                        addTextLabel(suffix, getRoleColor(last.profile), getRoleStroke(last.profile), last.labelFs);
+                        addTextLabel(suffix, getRoleColor(last.profile), getRoleStroke(last.profile), last.labelScale, ls);
                     }
                 }
             }
@@ -379,11 +381,19 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                     const labelColor = item._labelColor || (item.profile && (item.profile.displayColor || item.profile.colorBefore)) || config.colorBefore;
                     const labelStroke = item._labelStroke || (item.profile && item.profile.labelStrokeColor) || config.strokeColorBefore;
                     const labelFw = config.fontBold ? 'bold ' : '';
-                    dcx.font = `${labelFw}${item.fs}px ${ff}`;
+                    dcx.save();
+                    dcx.translate(item.drawX, y);
+                    dcx.scale(item.scale || 1, item.scale || 1);
+                    dcx.font = `${labelFw}${fs}px ${ff}`;
                     applyCanvasTextMode(dcx);
-                    drawShadowStrokeText(dcx, item.text, item.drawX, y, labelStroke, config.strokeWidth);
                     dcx.fillStyle = labelColor;
-                    dcx.fillText(item.text, item.drawX, y);
+                    let labelX = 0;
+                    for (let i = 0; i < item.chars.length; i++) {
+                        drawShadowStrokeText(dcx, item.chars[i], labelX, 0, labelStroke, config.strokeWidth / (item.scale || 1));
+                        dcx.fillText(item.chars[i], labelX, 0);
+                        labelX += item.widths[i] + (i < item.chars.length - 1 ? ls : 0);
+                    }
+                    dcx.restore();
                 }
             } else if (item.type === 'group') {
                 const groupStartX = item.chars[0].x;
