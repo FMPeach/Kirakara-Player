@@ -167,7 +167,9 @@ function normalizeSongTitleConfig(rawConfig) {
         durationSec: Math.min(10, Math.max(3, durationValue)),
         textFade: _normalizeTitleTextFade(rawTextFade, defaults.textFade),
         prelude: {
-            enabled: rawPrelude.enabled === undefined ? defaults.prelude.enabled : !!rawPrelude.enabled,
+            // Temporarily disabled until the C++ engine matches media timing.
+            // enabled: rawPrelude.enabled === undefined ? defaults.prelude.enabled : !!rawPrelude.enabled,
+            enabled: false,
             backgroundImageName: _titleText(rawPrelude.backgroundImageName, ''),
             fadeEnabled: rawPrelude.fadeEnabled === undefined ? defaults.prelude.fadeEnabled : !!rawPrelude.fadeEnabled,
             fadeDurationMs: Math.max(0, _titleFiniteNumber(rawPrelude.fadeDurationMs, defaults.prelude.fadeDurationMs)),

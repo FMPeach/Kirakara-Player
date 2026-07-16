@@ -279,8 +279,11 @@
                             <input type="checkbox" checked={songTitle.textFade} onChange={e=>updateSongTitle({...songTitle,textFade:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/>
                             <span className="text-[10px] text-zinc-300 flex-1">文字淡入淡出</span>
                         </label>
-                        <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer">
+                        <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-not-allowed opacity-50">
+                            {/* Temporarily disabled.
                             <input type="checkbox" checked={songTitle.prelude.enabled} onChange={e=>updateSongTitle({...songTitle,prelude:{...songTitle.prelude,enabled:e.target.checked}})} className="accent-amber-500 w-3.5 h-3.5"/>
+                            */}
+                            <input type="checkbox" checked={false} disabled className="accent-amber-500 w-3.5 h-3.5"/>
                             <span className="text-[10px] text-zinc-300 flex-1">时间前补</span>
                         </label>
                         {songTitle.prelude.enabled &&
@@ -537,6 +540,8 @@
                 }
                 const prelude = exp.songTitle?.prelude;
                 if (prelude) {
+                    // Keep KRL output compatible while title prelude is disabled.
+                    prelude.enabled = false;
                     const imageName = prelude.backgroundImageName;
                     delete prelude.backgroundImageName;
                     if (titleBackgroundUrl) {
