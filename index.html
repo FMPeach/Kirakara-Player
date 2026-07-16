@@ -533,7 +533,7 @@
                         const p = exp.characterProfiles[k];
                         const imageUrl = typeof p?.image === 'string' ? p.image : '';
                         const imageName = p?.imageName;
-                        if (imageUrl) p.image = await imageUrlToKrlImage(imageUrl, imageName);
+                        if (p.imageMode && imageUrl) p.image = await imageUrlToKrlImage(imageUrl, imageName);
                         else delete p.image;
                         delete p.imageName;
                     }
@@ -544,7 +544,7 @@
                     prelude.enabled = false;
                     const imageName = prelude.backgroundImageName;
                     delete prelude.backgroundImageName;
-                    if (titleBackgroundUrl) {
+                    if (prelude.enabled && titleBackgroundUrl) {
                         prelude.backgroundImage = await imageUrlToKrlImage(titleBackgroundUrl, imageName);
                     } else {
                         delete prelude.backgroundImage;
