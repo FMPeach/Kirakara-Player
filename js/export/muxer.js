@@ -98,21 +98,36 @@ KiraExport.Mp4Muxer = {
             }
         }
 
-        var buffer;
-        if (typeof file.getBuffer === 'function') {
-            buffer = file.getBuffer();
-        } else {
-            var mdats = file.mdats;
-            var total = new Uint8Array(mdats.reduce(function (s, m) { return s + m.size; }, 0));
-            var off = 0;
-            for (var mi = 0; mi < mdats.length; mi++) {
-                total.set(new Uint8Array(mdats[mi].buffer, mdats[mi].start, mdats[mi].size), off);
-                off += mdats[mi].size;
+        // MP4Box#getBuffer writes every box into one contiguous ArrayBuffer.
+        // Keep its box generation, but serialize each box separately so large
+        // exports never require one allocation as large as the complete file.
+        var parts = [];
+        for (var bi = 0; bi < file.boxes.length; bi++) {
+            var box = file.boxes[bi];
+            if (box.type === 'mdat' && box.data) {
+                var payloadSize = box.data.byteLength;
+                var totalSize = payloadSize + 8;
+                var large = totalSize > 0xFFFFFFFF;
+                var header = new Uint8Array(large ? 16 : 8);
+                var view = new DataView(header.buffer);
+                view.setUint32(0, large ? 1 : totalSize, false);
+                header.set([0x6D, 0x64, 0x61, 0x74], 4); // "mdat"
+                if (large) {
+                    var largeSize = payloadSize + 16;
+                    view.setUint32(8, Math.floor(largeSize / 0x100000000), false);
+                    view.setUint32(12, largeSize >>> 0, false);
+                }
+                parts.push(header, box.data);
+                continue;
             }
-            buffer = total.buffer;
+
+            var stream = new DataStream();
+            stream.endianness = DataStream.BIG_ENDIAN;
+            box.write(stream);
+            parts.push(stream.buffer);
         }
 
-        return new Blob([buffer], { type: 'video/mp4' });
+        return new Blob(parts, { type: 'video/mp4' });
     }
 };
 

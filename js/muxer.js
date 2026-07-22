@@ -42,6 +42,16 @@ function muxWebM(chunks, opts) {
         return { w, u8, u16be, u32be, u64be, f64be, raw, sstr, writeVint, el, toU8 };
     };
 
+    const makeElementHeader = (id, nBytes, size) => {
+        const b = makeBuf();
+        if (nBytes === 4) b.u32be(id);
+        else if (nBytes === 3) { b.u8((id>>>16)&0xFF); b.u8((id>>>8)&0xFF); b.u8(id&0xFF); }
+        else if (nBytes === 2) b.u16be(id);
+        else b.u8(id);
+        b.writeVint(size);
+        return b.toU8();
+    };
+
     // ---- OpusHead 工具 ----
     const buildOpusHead = (ch, sr) => {
         const buf = new Uint8Array(19);
@@ -73,38 +83,51 @@ function muxWebM(chunks, opts) {
 
         const cEndMs = cStartMs + 2000;
         const vFrames = [], aFrames = [];
-        while (ci < chunks.length && Math.round(chunks[ci].timestamp/1000) < cEndMs)
-            vFrames.push({...chunks[ci], tMs: Math.round(chunks[ci].timestamp/1000)-cStartMs, _ci: ci++});
+        while (ci < chunks.length && Math.round(chunks[ci].timestamp/1000) < cEndMs) {
+            const frame = chunks[ci++];
+            vFrames.push({frame, tMs: Math.round(frame.timestamp/1000)-cStartMs});
+        }
         while (ai < audioCh.length && Math.round(audioCh[ai].timestamp/1000) < cEndMs) {
-            aFrames.push({...audioCh[ai], tMs: Math.round(audioCh[ai].timestamp/1000)-cStartMs});
-            ai++;
+            const frame = audioCh[ai++];
+            aFrames.push({frame, tMs: Math.round(frame.timestamp/1000)-cStartMs});
         }
         if (vFrames.length || aFrames.length)
             clusters.push({startMs: cStartMs, vFrames, aFrames});
     }
 
-    // ====== Step 2: Build each cluster as bytes ======
+    // ====== Step 2: Build cluster headers and retain frame data as Blob parts ======
     const clusterBufs = [];
     for (const cl of clusters) {
-        const c = makeBuf();
-        c.el(0x1F43B675, 4, () => {
-            const tcB = []; let tcv = cl.startMs;
-            if (tcv===0) tcB.push(0); else while(tcv>0){tcB.unshift(tcv&0xFF); tcv>>>=8;}
-            c.el(0xE7, 1, ()=>{for(let b of tcB)c.u8(b);});
-            let vi = 0, ac = 0;
-            while (vi < cl.vFrames.length || ac < cl.aFrames.length) {
-                const vTs = vi < cl.vFrames.length ? cl.vFrames[vi].tMs : Infinity;
-                const aTs = ac < cl.aFrames.length ? cl.aFrames[ac].tMs : Infinity;
-                if (vTs <= aTs) {
-                    const f = cl.vFrames[vi++];
-                    c.el(0xA3,1,()=>{ c.u8(0x81); c.u16be(f.tMs&0xFFFF); c.u8(f.isKey?0x80:0x00); c.raw(f.data); });
-                } else {
-                    const a = cl.aFrames[ac++];
-                    c.el(0xA3,1,()=>{ c.u8(0x82); c.u16be(a.tMs&0xFFFF); c.u8(0x80); c.raw(a.data); });
-                }
-            }
+        const tc = makeBuf();
+        const tcB = []; let tcv = cl.startMs;
+        if (tcv===0) tcB.push(0); else while(tcv>0){tcB.unshift(tcv&0xFF); tcv>>>=8;}
+        tc.el(0xE7, 1, ()=>{for(let b of tcB)tc.u8(b);});
+
+        const payloadParts = [tc.toU8()];
+        let payloadSize = payloadParts[0].byteLength;
+        let vi = 0, ac = 0;
+        while (vi < cl.vFrames.length || ac < cl.aFrames.length) {
+            const vTs = vi < cl.vFrames.length ? cl.vFrames[vi].tMs : Infinity;
+            const aTs = ac < cl.aFrames.length ? cl.aFrames[ac].tMs : Infinity;
+            const item = vTs <= aTs ? cl.vFrames[vi++] : cl.aFrames[ac++];
+            const frame = item.frame;
+            const block = makeBuf();
+            block.u8(0xA3);
+            block.writeVint(4 + frame.data.byteLength);
+            block.u8(vTs <= aTs ? 0x81 : 0x82);
+            block.u16be(item.tMs & 0xFFFF);
+            block.u8(vTs <= aTs ? (frame.isKey ? 0x80 : 0x00) : 0x80);
+            const blockHeader = block.toU8();
+            payloadParts.push(blockHeader, frame.data);
+            payloadSize += blockHeader.byteLength + frame.data.byteLength;
+        }
+
+        const clusterHeader = makeElementHeader(0x1F43B675, 4, payloadSize);
+        clusterBufs.push({
+            startMs: cl.startMs,
+            parts: [clusterHeader, ...payloadParts],
+            byteLength: clusterHeader.byteLength + payloadSize,
         });
-        clusterBufs.push({startMs: cl.startMs, buf: c.toU8()});
     }
 
     // ====== Step 3: Build Info ======
@@ -160,7 +183,7 @@ function muxWebM(chunks, opts) {
                     cues.el(0xF1, 1, ()=>cues.writeVint(clOff));
                 });
             });
-            clOff += cl.buf.length;
+            clOff += cl.byteLength;
         }
     });
     const cuesBuf = cues.toU8();
@@ -208,7 +231,9 @@ function muxWebM(chunks, opts) {
 
     // Payload: SeekHead → Info → Tracks → Cues → Clusters
     blobParts.push(skBuf, infoBuf, tracksBuf, cuesBuf);
-    for (const cl of clusterBufs) blobParts.push(cl.buf);
+    for (const cl of clusterBufs) {
+        for (const part of cl.parts) blobParts.push(part);
+    }
 
     return new Blob(blobParts, { type: 'video/webm' });
 }
