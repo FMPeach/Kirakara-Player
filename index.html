@@ -26,7 +26,7 @@
 
     <!-- ===== 逻辑模块 ===== -->
     <script src="js/parser.js"></script>
-    <script src="js/muxer.js"></script>
+    <script src="js/muxer.js?v=1"></script>
     <script src="js/codec.js"></script>
 
     <!-- ===== 渲染引擎 ===== -->
@@ -34,7 +34,7 @@
     <script src="js/canvas-renderer.js"></script>
 
     <!-- ===== 导出流水线 分层架构 ===== -->
-    <script src="js/export/muxer.js"></script>
+    <script src="js/export/muxer.js?v=1"></script>
     <script src="js/export/container-reader.js"></script>
     <script src="js/export/decoder-provider.js"></script>
     <script src="js/export/renderer.js"></script>
@@ -876,6 +876,9 @@
                                         <button className="text-[10px] text-indigo-400 hover:text-indigo-300 border border-zinc-700 rounded px-2 py-0.5" onClick={()=>lrcFileInputRef.current?.click()}>📄 导入歌词</button>
                                         {lrcRaw && <button className="text-[10px] text-zinc-500 hover:text-red-400" onClick={()=>setLrcRaw('')}>清空</button>}
                                     </div>
+                                    <a href="../DualRuby.html" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-sky-400 hover:text-sky-300 hover:underline text-right">
+                                        只有两份单独不同注音的歌词吗？点我合并…
+                                    </a>
                                 </section>
 
                                 {/* 背景图片 */}

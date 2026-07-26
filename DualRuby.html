@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KRL 双注音合并器</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: #313244;
+            --surface-hover: #45475a;
+            --text: #cdd6f4;
+            --text-sub: #a6adc8;
+            --primary: #cba6f7;
+            --primary-hover: #b4befe;
+            --success: #a6e3a1;
+            --error: #f38ba8;
+            --border-radius: 12px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+            background-color: var(--surface);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: var(--primary);
+            margin: 0 0 0.5rem 0;
+        }
+
+        .header p {
+            color: var(--text-sub);
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .dropzones {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .dropzone {
+            flex: 1;
+            border: 2px dashed var(--text-sub);
+            border-radius: var(--border-radius);
+            padding: 2.5rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            background: rgba(255,255,255,0.02);
+        }
+
+        .dropzone:hover, .dropzone.dragover {
+            border-color: var(--primary);
+            background: rgba(203, 166, 247, 0.05);
+        }
+
+        .dropzone.has-file {
+            border-color: var(--success);
+            border-style: solid;
+            background: rgba(166, 227, 161, 0.05);
+        }
+
+        .dropzone input {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+
+        .icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .file-name {
+            display: block;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--success);
+            word-break: break-all;
+        }
+
+        .action-btn {
+            width: 100%;
+            padding: 1.2rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--bg);
+            background-color: var(--primary);
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .action-btn:disabled {
+            background-color: var(--surface-hover);
+            color: var(--text-sub);
+            cursor: not-allowed;
+        }
+
+        .log {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--error);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>春日向双注音合并器</h1>
+        <p>请在 SUG 中分别导出带有「假名」和「罗马音」的春日向文件并拖入下方。</p>
+    </div>
+
+    <div class="dropzones">
+        <div class="dropzone" id="zone1">
+            <input type="file" id="file1" accept=".txt,.krl">
+            <span class="icon">🇯🇵</span>
+            <strong>1. 导入假名注音</strong>
+            <span class="file-name" id="name1">等待导入...</span>
+        </div>
+        <div class="dropzone" id="zone2">
+            <input type="file" id="file2" accept=".txt,.krl">
+            <span class="icon">🔤</span>
+            <strong>2. 导入罗马音注音</strong>
+            <span class="file-name" id="name2">等待导入...</span>
+        </div>
+    </div>
+
+    <button class="action-btn" id="mergeBtn" disabled>合并为双注音...</button>
+    <div class="log" id="logBox"></div>
+</div>
+
+<script>
+    let kanaText = null;
+    let romaText = null;
+
+    function setupDropzone(zoneId, inputId, nameId, isKana) {
+        const zone = document.getElementById(zoneId);
+        const input = document.getElementById(inputId);
+        const nameDisp = document.getElementById(nameId);
+
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+        input.addEventListener('change', e => handleFile(e.target.files[0]));
+
+        function handleFile(file) {
+            if (!file) return;
+            nameDisp.textContent = "已加载: " + file.name;
+            zone.classList.add('has-file');
+            
+            const reader = new FileReader();
+            reader.onload = e => {
+                if (isKana) kanaText = e.target.result;
+                else romaText = e.target.result;
+                checkReady();
+            };
+            reader.readAsText(file);
+        }
+    }
+
+    function checkReady() {
+        const btn = document.getElementById('mergeBtn');
+        btn.disabled = !(kanaText && romaText);
+    }
+
+    setupDropzone('zone1', 'file1', 'name1', true);
+    setupDropzone('zone2', 'file2', 'name2', false);
+
+    // ========== 核心 KRL 解析与合并算法 ==========
+    
+    // 将一整行 KRL 解析为基础字符序列
+    function parseToChars(line) {
+        const regex = /(\[[^\]]+\])|(\{[^|]+\|[^}]+\})|([^{}[\]]+)/g;
+        let match;
+        let chars = [];
+        let pendingTags = "";
+        
+        while ((match = regex.exec(line)) !== null) {
+            if (match[1]) {
+                pendingTags += match[1];
+            } else if (match[2]) {
+                const content = match[2].slice(1, -1);
+                const idx = content.indexOf('|');
+                const base = content.slice(0, idx);
+                const ruby = content.slice(idx + 1);
+                
+                for (let i = 0; i < base.length; i++) {
+                    chars.push({
+                        char: base[i],
+                        preTags: i === 0 ? pendingTags : "",
+                        isRuby: true,
+                        rubyBase: base,
+                        rubyText: ruby
+                    });
+                }
+                pendingTags = "";
+            } else if (match[3]) {
+                const text = match[3];
+                for (let i = 0; i < text.length; i++) {
+                    chars.push({
+                        char: text[i],
+                        preTags: i === 0 ? pendingTags : "",
+                        isRuby: false
+                    });
+                }
+                pendingTags = "";
+            }
+        }
+        if (pendingTags) chars.push({ char: "", preTags: pendingTags, isRuby: false });
+        return chars;
+    }
+
+    // 合并两行 KRL
+    function mergeLines(lineK, lineR, lineNum) {
+        const charsK = parseToChars(lineK);
+        const charsR = parseToChars(lineR);
+        let out = "";
+        let p = 0;
+        
+        while (p < charsK.length || p < charsR.length) {
+            let cK = charsK[p] || { char: "", preTags: "", isRuby: false };
+            let cR = charsR[p] || { char: "", preTags: "", isRuby: false };
+            
+            // 处理行尾遗留的独立标签
+            if (cK.char === "" && cR.char === "") {
+                out += cK.preTags;
+                p++;
+                continue;
+            }
+            
+            // 安全性检查：字符不匹配则直接返回假名原句防崩
+            if (cK.char !== cR.char) {
+                console.warn(`[第${lineNum}行] 字符未对齐: 假名 "${cK.char}" vs 罗马音 "${cR.char}"`);
+                return lineK; 
+            }
+            
+            // 获取当前区块长度
+            let lenK = cK.isRuby ? cK.rubyBase.length : 1;
+            let lenR = cR.isRuby ? cR.rubyBase.length : 1;
+            let len = Math.max(lenK, lenR);
+            
+            let baseText = "";
+            for (let i = 0; i < len; i++) {
+                if (charsK[p+i]) baseText += charsK[p+i].char;
+            }
+            
+            // 拼接逻辑
+            if (!cK.isRuby && !cR.isRuby) {
+                // 两边都不是注音（如空格等符号）
+                out += cK.preTags + baseText;
+            } else {
+                // 有一方是注音（SUG逻辑：汉字两边都是注音，平假名罗马音是注音）
+                let r1 = cK.isRuby ? cK.rubyText : "";
+                let r2 = cR.isRuby ? cR.rubyText : "";
+                
+                // 如果 cK 原本是文本（带 preTags），在合并为注音块时舍弃原外部 Tag，
+                // 因为 SUG 的罗马音 (r2) 内部必定已经包含了该时间标签。
+                out += `{${baseText}|${r1}>${r2}}`;
+            }
+            p += len;
+        }
+        return out;
+    }
+
+    document.getElementById('mergeBtn').addEventListener('click', () => {
+        try {
+            document.getElementById('logBox').innerText = "";
+            const linesK = kanaText.split('\n');
+            const linesR = romaText.split('\n');
+            
+            let mergedLines = [];
+            for (let i = 0; i < linesK.length; i++) {
+                const lK = linesK[i].replace(/\r$/, '');
+                const lR = (linesR[i] || '').replace(/\r$/, '');
+                mergedLines.push(mergeLines(lK, lR, i + 1));
+            }
+            
+            const mergedText = mergedLines.join('\n');
+            
+            // 触发本地下载
+            const blob = new Blob([mergedText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "Merged_DualRuby.krl";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+        } catch(e) {
+            document.getElementById('logBox').innerText = "合并出错: " + e.message;
+            console.error(e);
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -69,6 +69,7 @@ function SongTitleLayer({ config, currentTime, backgroundImageUrl }) {
                         flexShrink: 0,
                         width: `${widths[charIndex]}px`,
                         marginRight: charIndex < chars.length - 1 ? `${style.letterSpacing}px` : 0,
+                        whiteSpace: 'pre',
                     },
                 }, char))));
             });

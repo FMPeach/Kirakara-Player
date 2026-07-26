@@ -36,7 +36,7 @@ function measureTotalWidth(text, fontSize, fontFamily, letterSpacing, fontWeight
         span.style.fontKerning = 'none';
         span.style.fontVariantLigatures = 'none';
         span.style.fontOpticalSizing = 'none';
-        span.style.whiteSpace = 'nowrap';
+        span.style.whiteSpace = 'pre';
         document.body.appendChild(span);
         const w = span.scrollWidth;
         document.body.removeChild(span);

@@ -82,7 +82,7 @@ var measureTotalWidth = function(text, fontSize, fontFamily, letterSpacing, font
         span.style.fontFamily = fontFamily;
         span.style.letterSpacing = letterSpacing + 'px';
         span.style.fontWeight = fontWeight || 'normal';
-        span.style.whiteSpace = 'nowrap';
+        span.style.whiteSpace = 'pre';
         document.body.appendChild(span);
         var w = span.scrollWidth;
         document.body.removeChild(span);
