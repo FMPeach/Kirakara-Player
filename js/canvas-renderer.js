@@ -556,13 +556,10 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             const rcEnd = (ri + 1 < r2Chars.length)
                                 ? gStart + (r2Syllables[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / r2Chars.length)
                                 : gEnd;
-                            const rcSpan = rcEnd - rcStart;
 
-                            let rawPct = 0;
-                            if (time >= rcEnd) rawPct = 100;
-                            else if (time > rcStart && rcSpan > 0) rawPct = ((time - rcStart) / rcSpan) * 100;
-
-                            const visualW = syl.blockW - r2ls;
+                            // 使用 calcProgress 获取 ink-aware 走字进度，对齐 DOM 和 Ruby1
+                            const chInfo = calcProgress(r2Chars[ri].char, time, rcStart, rcEnd, true, config, undefined,
+                                { fs: r2fs, pad: r2lw, bold: config.ruby2Bold, letterSpacing: r2ls });
 
                             // Pass 1: B Stroke
                             let cxStrokeB = r2xCursor;
@@ -578,26 +575,29 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 cxFillB += syl.charWidths[i] + r2ls;
                             }
 
-                            if (rawPct > 0) {
-                                dcx.save();
-                                dcx.beginPath();
-                                dcx.rect(r2xCursor - r2lw - 1, r2TextTop - r2fs, (rawPct / 100) * (visualW + r2lw * 2 + 2), r2BoxHeight + r2fs * 2);
-                                dcx.clip();
+                            if (chInfo.pct > 0) {
+                                const afterW = (chInfo.pct / 100) * chInfo.total;
+                                if (afterW > 0) {
+                                    dcx.save();
+                                    dcx.beginPath();
+                                    dcx.rect(r2xCursor - r2lw, r2TextTop - r2fs, afterW, r2BoxHeight + r2fs * 2);
+                                    dcx.clip();
 
-                                // Pass 3: A Stroke
-                                let cxStrokeA = r2xCursor;
-                                for (let i = 0; i < syl.chars.length; i++) {
-                                    drawShadowStrokeText(dcx, syl.chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
-                                    cxStrokeA += syl.charWidths[i] + r2ls;
+                                    // Pass 3: A Stroke
+                                    let cxStrokeA = r2xCursor;
+                                    for (let i = 0; i < syl.chars.length; i++) {
+                                        drawShadowStrokeText(dcx, syl.chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                        cxStrokeA += syl.charWidths[i] + r2ls;
+                                    }
+                                    // Pass 4: A Fill
+                                    let cxFillA = r2xCursor;
+                                    for (let i = 0; i < syl.chars.length; i++) {
+                                        dcx.fillStyle = r2gColorA; 
+                                        dcx.fillText(syl.chars[i], cxFillA, r2y);
+                                        cxFillA += syl.charWidths[i] + r2ls;
+                                    }
+                                    dcx.restore();
                                 }
-                                // Pass 4: A Fill
-                                let cxFillA = r2xCursor;
-                                for (let i = 0; i < syl.chars.length; i++) {
-                                    dcx.fillStyle = r2gColorA; 
-                                    dcx.fillText(syl.chars[i], cxFillA, r2y);
-                                    cxFillA += syl.charWidths[i] + r2ls;
-                                }
-                                dcx.restore();
                             }
                             r2xCursor += syl.blockW;
                         }
@@ -608,11 +608,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2));
                         const r2TotalW = r2CharWidths.reduce((s, w) => s + w, 0) + (r2CharsArr.length > 0 ? r2CharsArr.length - 1 : 0) * r2ls;
                         let r2xCursor = groupCenterX - r2TotalW / 2;
-                        const r2Span = gEnd - gStart;
 
-                        let rawPct = 0;
-                        if (time >= gEnd) rawPct = 100;
-                        else if (time > gStart && r2Span > 0) rawPct = ((time - gStart) / r2Span) * 100;
+                        const chInfo = calcProgress(item.ruby2, time, gStart, gEnd, true, config, undefined,
+                            { fs: r2fs, pad: r2lw, bold: config.ruby2Bold, letterSpacing: r2ls });
 
                         // Pass 1: B Stroke
                         let cxStrokeB = r2xCursor;
@@ -628,26 +626,29 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             cxFillB += r2CharWidths[i] + r2ls;
                         }
 
-                        if (rawPct > 0) {
-                            dcx.save();
-                            dcx.beginPath();
-                            dcx.rect(r2xCursor - r2lw - 1, r2TextTop - r2fs, (rawPct / 100) * (r2TotalW + r2lw * 2 + 2), r2BoxHeight + r2fs * 2);
-                            dcx.clip();
+                        if (chInfo.pct > 0) {
+                            const afterW = (chInfo.pct / 100) * chInfo.total;
+                            if (afterW > 0) {
+                                dcx.save();
+                                dcx.beginPath();
+                                dcx.rect(r2xCursor - r2lw, r2TextTop - r2fs, afterW, r2BoxHeight + r2fs * 2);
+                                dcx.clip();
 
-                            // Pass 3: A Stroke
-                            let cxStrokeA = r2xCursor;
-                            for (let i = 0; i < r2CharsArr.length; i++) {
-                                drawShadowStrokeText(dcx, r2CharsArr[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
-                                cxStrokeA += r2CharWidths[i] + r2ls;
+                                // Pass 3: A Stroke
+                                let cxStrokeA = r2xCursor;
+                                for (let i = 0; i < r2CharsArr.length; i++) {
+                                    drawShadowStrokeText(dcx, r2CharsArr[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                    cxStrokeA += r2CharWidths[i] + r2ls;
+                                }
+                                // Pass 4: A Fill
+                                let cxFillA = r2xCursor;
+                                for (let i = 0; i < r2CharsArr.length; i++) {
+                                    dcx.fillStyle = r2gColorA;
+                                    dcx.fillText(r2CharsArr[i], cxFillA, r2y);
+                                    cxFillA += r2CharWidths[i] + r2ls;
+                                }
+                                dcx.restore();
                             }
-                            // Pass 4: A Fill
-                            let cxFillA = r2xCursor;
-                            for (let i = 0; i < r2CharsArr.length; i++) {
-                                dcx.fillStyle = r2gColorA;
-                                dcx.fillText(r2CharsArr[i], cxFillA, r2y);
-                                cxFillA += r2CharWidths[i] + r2ls;
-                            }
-                            dcx.restore();
                         }
                     }
                 }
