@@ -538,16 +538,33 @@
                         delete p.imageName;
                     }
                 }
-                const prelude = exp.songTitle?.prelude;
-                if (prelude) {
-                    // Keep KRL output compatible while title prelude is disabled.
-                    prelude.enabled = false;
-                    const imageName = prelude.backgroundImageName;
-                    delete prelude.backgroundImageName;
-                    if (prelude.enabled && titleBackgroundUrl) {
-                        prelude.backgroundImage = await imageUrlToKrlImage(titleBackgroundUrl, imageName);
-                    } else {
-                        delete prelude.backgroundImage;
+                // 工程导出：标题未启用时仅保留 enabled: false 标记
+                // 模板导出 (filterRoles === null) 保留结构但清空文本内容
+                if (filterRoles !== null && !exp.songTitle?.enabled) {
+                    exp.songTitle = { enabled: false };
+                } else {
+                    const prelude = exp.songTitle?.prelude;
+                    if (prelude) {
+                        // Keep KRL output compatible while title prelude is disabled.
+                        prelude.enabled = false;
+                        const imageName = prelude.backgroundImageName;
+                        delete prelude.backgroundImageName;
+                        if (prelude.enabled && titleBackgroundUrl) {
+                            prelude.backgroundImage = await imageUrlToKrlImage(titleBackgroundUrl, imageName);
+                        } else {
+                            delete prelude.backgroundImage;
+                        }
+                    }
+                    // 模板导出：不存实际文本内容（value / before / separator / after）
+                    if (filterRoles === null && exp.songTitle?.groups) {
+                        for (const g of exp.songTitle.groups) {
+                            if (g.kind === 'title') g.value = '';
+                            else if (g.rows) for (const r of g.rows) {
+                                r.before = '';
+                                r.separator = '';
+                                r.after = '';
+                            }
+                        }
                     }
                 }
                 return JSON.stringify(exp, null, 4);
