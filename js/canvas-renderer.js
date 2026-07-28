@@ -575,29 +575,26 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 cxFillB += syl.charWidths[i] + r2ls;
                             }
 
-                            if (chInfo.pct > 0) {
-                                const afterW = (chInfo.pct / 100) * chInfo.total;
-                                if (afterW > 0) {
-                                    dcx.save();
-                                    dcx.beginPath();
-                                    dcx.rect(r2xCursor - r2lw, r2TextTop - r2fs, afterW, r2BoxHeight + r2fs * 2);
-                                    dcx.clip();
+                            {
+                                dcx.save();
+                                dcx.beginPath();
+                                dcx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
+                                dcx.clip();
 
-                                    // Pass 3: A Stroke
-                                    let cxStrokeA = r2xCursor;
-                                    for (let i = 0; i < syl.chars.length; i++) {
-                                        drawShadowStrokeText(dcx, syl.chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
-                                        cxStrokeA += syl.charWidths[i] + r2ls;
-                                    }
-                                    // Pass 4: A Fill
-                                    let cxFillA = r2xCursor;
-                                    for (let i = 0; i < syl.chars.length; i++) {
-                                        dcx.fillStyle = r2gColorA; 
-                                        dcx.fillText(syl.chars[i], cxFillA, r2y);
-                                        cxFillA += syl.charWidths[i] + r2ls;
-                                    }
-                                    dcx.restore();
+                                // Pass 3: A Stroke
+                                let cxStrokeA = r2xCursor;
+                                for (let i = 0; i < syl.chars.length; i++) {
+                                    drawShadowStrokeText(dcx, syl.chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                    cxStrokeA += syl.charWidths[i] + r2ls;
                                 }
+                                // Pass 4: A Fill
+                                let cxFillA = r2xCursor;
+                                for (let i = 0; i < syl.chars.length; i++) {
+                                    dcx.fillStyle = r2gColorA; 
+                                    dcx.fillText(syl.chars[i], cxFillA, r2y);
+                                    cxFillA += syl.charWidths[i] + r2ls;
+                                }
+                                dcx.restore();
                             }
                             r2xCursor += syl.blockW;
                         }
@@ -626,29 +623,26 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             cxFillB += r2CharWidths[i] + r2ls;
                         }
 
-                        if (chInfo.pct > 0) {
-                            const afterW = (chInfo.pct / 100) * chInfo.total;
-                            if (afterW > 0) {
-                                dcx.save();
-                                dcx.beginPath();
-                                dcx.rect(r2xCursor - r2lw, r2TextTop - r2fs, afterW, r2BoxHeight + r2fs * 2);
-                                dcx.clip();
+                        {
+                            dcx.save();
+                            dcx.beginPath();
+                            dcx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
+                            dcx.clip();
 
-                                // Pass 3: A Stroke
-                                let cxStrokeA = r2xCursor;
-                                for (let i = 0; i < r2CharsArr.length; i++) {
-                                    drawShadowStrokeText(dcx, r2CharsArr[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
-                                    cxStrokeA += r2CharWidths[i] + r2ls;
-                                }
-                                // Pass 4: A Fill
-                                let cxFillA = r2xCursor;
-                                for (let i = 0; i < r2CharsArr.length; i++) {
-                                    dcx.fillStyle = r2gColorA;
-                                    dcx.fillText(r2CharsArr[i], cxFillA, r2y);
-                                    cxFillA += r2CharWidths[i] + r2ls;
-                                }
-                                dcx.restore();
+                            // Pass 3: A Stroke
+                            let cxStrokeA = r2xCursor;
+                            for (let i = 0; i < r2CharsArr.length; i++) {
+                                drawShadowStrokeText(dcx, r2CharsArr[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                cxStrokeA += r2CharWidths[i] + r2ls;
                             }
+                            // Pass 4: A Fill
+                            let cxFillA = r2xCursor;
+                            for (let i = 0; i < r2CharsArr.length; i++) {
+                                dcx.fillStyle = r2gColorA;
+                                dcx.fillText(r2CharsArr[i], cxFillA, r2y);
+                                cxFillA += r2CharWidths[i] + r2ls;
+                            }
+                            dcx.restore();
                         }
                     }
                 }

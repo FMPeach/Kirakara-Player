@@ -21,7 +21,10 @@ function calcProgress(text, time, startTime, endTime, isRuby, config, rawPctOver
     const domW = measureTotalWidth(text, fs, config.fontFamily, useOpts ? (opts.letterSpacing || 0) : 0, fw.trim() || 'normal');
     const emW = Math.max(ink.emWidth || fs, domW);
     const total = emW + 2 * pad;
-    const offsetL = pad - (ink.left || 0), offsetR = pad + (ink.right || emW);
+    // Canvas measureText 不支持 letter-spacing，ink.right 不含字距；但渲染时有字距，
+    // 需要补偿 (text.length-1)*letterSpacing 以避免走字 100% 时右边描边被裁切
+    const lsExtra = (useOpts && opts.letterSpacing && text.length > 1) ? (text.length - 1) * opts.letterSpacing : 0;
+    const offsetL = pad - (ink.left || 0), offsetR = pad + (ink.right || emW) + lsExtra;
     const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
     const startFrac = (strokeL / total) * 100;
     const endFrac = (strokeR / total) * 100;
