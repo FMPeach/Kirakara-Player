@@ -137,21 +137,32 @@ function parseLyrics(lrcRaw, entryBuf, config) {
             let currentTimeTag = null; // 当前上下文游标时间
 
             // 解析引擎 Regex:
-            const lexer = /(【[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|([\s\S])/g;
+            // 转义分支顺序敏感：\\ 必须排在 \【 前，否则 "\\【"（字面\ + 角色标签）
+            // 会被 (\\【) 误匹配成单个字面【。与 C++ lrc_parser 从左往右语义一致：
+            //   \\ → 字面 \; \【 → 字面 【; 其他 \x 原样保留。
+            const lexer = /(\\\\)|(\\【)|(【[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|([\s\S])/g;
             let m;
             while ((m = lexer.exec(line)) !== null) {
                 if (m[1]) {
-                    // 1. 角色标签
-                    currentRole = m[1].replace(/[【】]/g, '').split('+').map(r => r.trim()).filter(Boolean);
-                    curExplicit = true;
+                    // 0. 反斜杠转义：\\ → 字面 \
+                    tokens.push({ type: 'char', text: '\\', role: currentRole, roleExplicit: curExplicit });
+                    curExplicit = false;
                 } else if (m[2]) {
-                    // 2. 时间标签
-                    currentTimeTag = parseTimeToSeconds(m[2]);
-                    tokens.push({ type: 'time', time: currentTimeTag });
+                    // 0.5 反斜杠转义：\【 → 字面 【（不触发角色标签）
+                    tokens.push({ type: 'char', text: '【', role: currentRole, roleExplicit: curExplicit });
+                    curExplicit = false;
                 } else if (m[3]) {
+                    // 1. 角色标签
+                    currentRole = m[3].replace(/[【】]/g, '').split('+').map(r => r.trim()).filter(Boolean);
+                    curExplicit = true;
+                } else if (m[4]) {
+                    // 2. 时间标签
+                    currentTimeTag = parseTimeToSeconds(m[4]);
+                    tokens.push({ type: 'time', time: currentTimeTag });
+                } else if (m[5]) {
                     // 3. 行内注音 {漢字|注音1>注音2} 或 {漢字|注音}
-                    const rawKanji = m[4];
-                    const rawKana = m[5];
+                    const rawKanji = m[6];
+                    const rawKana = m[7];
 
                     // 拆分注音1/2（> 分隔）
                     const gtIdx = rawKana.indexOf('>');
@@ -208,9 +219,9 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                         tokens.push(kt);
                     }
                     
-                } else if (m[6]) {
+                } else if (m[8]) {
                     // 4. 普通单字符（含空格）
-                    tokens.push({ type: 'char', text: m[6], role: currentRole, roleExplicit: curExplicit });
+                    tokens.push({ type: 'char', text: m[8], role: currentRole, roleExplicit: curExplicit });
                     curExplicit = false;
                 }
             }
