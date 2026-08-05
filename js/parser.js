@@ -137,10 +137,11 @@ function parseLyrics(lrcRaw, entryBuf, config) {
             let currentTimeTag = null; // 当前上下文游标时间
 
             // 解析引擎 Regex:
+            // 角色标签前缀为【@，分隔符为 +，后缀为】。普通【】不再触发角色。
             // 转义分支顺序敏感：\\ 必须排在 \【 前，否则 "\\【"（字面\ + 角色标签）
             // 会被 (\\【) 误匹配成单个字面【。与 C++ lrc_parser 从左往右语义一致：
             //   \\ → 字面 \; \【 → 字面 【; 其他 \x 原样保留。
-            const lexer = /(\\\\)|(\\【)|(【[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|([\s\S])/g;
+            const lexer = /(\\\\)|(\\【)|(【@[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|([\s\S])/g;
             let m;
             while ((m = lexer.exec(line)) !== null) {
                 if (m[1]) {
@@ -152,9 +153,18 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                     tokens.push({ type: 'char', text: '【', role: currentRole, roleExplicit: curExplicit });
                     curExplicit = false;
                 } else if (m[3]) {
-                    // 1. 角色标签
-                    currentRole = m[3].replace(/[【】]/g, '').split('+').map(r => r.trim()).filter(Boolean);
-                    curExplicit = true;
+                    // 1. 角色标签：【@角色A】或【@角色A+角色B】
+                    // 非法格式（按+分割后无任何角色名，如【@】、【@+】）：不解析、原样渲染
+                    const candidate = m[3].replace(/^【@/, '').replace(/】$/, '').split('+').map(r => r.trim()).filter(Boolean);
+                    if (candidate.length > 0) {
+                        currentRole = candidate;
+                        curExplicit = true;
+                    } else {
+                        for (let k = 0; k < m[3].length; k++) {
+                            tokens.push({ type: 'char', text: m[3][k], role: currentRole, roleExplicit: curExplicit });
+                            curExplicit = false;
+                        }
+                    }
                 } else if (m[4]) {
                     // 2. 时间标签
                     currentTimeTag = parseTimeToSeconds(m[4]);
