@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KRL 角色标签转换器</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: #313244;
+            --surface-hover: #45475a;
+            --text: #cdd6f4;
+            --text-sub: #a6adc8;
+            --primary: #f0b56b;
+            --primary-hover: #ffd399;
+            --success: #a6e3a1;
+            --error: #f38ba8;
+            --border-radius: 12px;
+        }
+        body {
+            margin: 0; padding: 24px;
+            background-color: var(--bg); color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; justify-content: center;
+        }
+        .container {
+            width: 100%; max-width: 860px;
+            padding: 2rem; background-color: var(--surface);
+            border-radius: var(--border-radius); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .header { text-align: center; margin-bottom: 1.5rem; }
+        .header h1 { color: var(--primary); margin: 0 0 0.5rem 0; }
+        .header p { color: var(--text-sub); margin: 0; font-size: 0.95rem; }
+        .header .back { display: inline-block; margin-top: 0.6rem; font-size: 0.8rem; color: var(--text-sub); text-decoration: none; }
+        .header .back:hover { color: var(--primary); text-decoration: underline; }
+
+        /* 文件上传区 */
+        .upload {
+            position: relative;
+            border: 2px dashed var(--text-sub); border-radius: var(--border-radius);
+            padding: 2.8rem 1rem; text-align: center; cursor: pointer;
+            transition: all 0.2s ease; background: rgba(255,255,255,0.02);
+        }
+        .upload:hover, .upload.dragover { border-color: var(--primary); background: rgba(240,181,107,0.06); }
+        .upload.has-file { border-color: var(--success); border-style: solid; }
+        .upload input[type="file"] {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+        .upload .icon { font-size: 2.6rem; display: block; margin-bottom: 0.6rem; }
+        .upload p { margin: 0; font-size: 1rem; }
+        .upload p b { color: var(--text); }
+        .upload .sub { font-size: 0.82rem; color: var(--text-sub); margin-top: 4px; }
+
+        .file-info {
+            display: flex; align-items: center; gap: 0.8rem;
+            margin-top: 0.9rem; padding: 10px 14px;
+            background: rgba(166,227,161,0.06); border: 1px solid rgba(166,227,161,0.3);
+            border-radius: 10px; font-size: 0.9rem;
+        }
+        .file-info .fname { font-weight: 600; word-break: break-all; }
+        .file-info .fstat { color: var(--success); margin-left: auto; white-space: nowrap; }
+        .file-info .btn-del { background: none; border: none; color: var(--error); cursor: pointer; font-size: 0.85rem; padding: 2px 6px; }
+
+        .actions { display: flex; justify-content: center; gap: 0.6rem; margin: 1rem 0; align-items: center; }
+        .btn {
+            padding: 0.65rem 1.5rem; font-size: 0.95rem; font-weight: 600;
+            color: var(--bg); background-color: var(--primary);
+            border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s;
+        }
+        .btn:hover { background-color: var(--primary-hover); }
+        .btn:disabled { background: var(--surface-hover); color: var(--text-sub); cursor: not-allowed; }
+        .btn.big { font-size: 1.05rem; padding: 0.85rem 2.2rem; }
+        .btn.ghost { background: transparent; color: var(--text-sub); border: 1px solid var(--text-sub); }
+        .btn.ghost:hover { color: var(--text); border-color: var(--text); background: rgba(255,255,255,0.05); }
+
+        .paste-toggle { margin-top: 0.6rem; }
+        .paste-toggle summary { cursor: pointer; color: var(--text-sub); font-size: 0.9rem; padding: 6px 0; }
+        .paste-toggle summary:hover { color: var(--text); }
+        .cols { display: flex; gap: 1rem; margin-top: 0.5rem; }
+        .col { flex: 1; display: flex; flex-direction: column; }
+        .col label { font-size: 0.85rem; color: var(--text-sub); margin-bottom: 6px; }
+        textarea {
+            flex: 1; min-height: 300px; resize: vertical;
+            background: #181825; color: var(--text);
+            border: 2px dashed var(--text-sub); border-radius: 10px;
+            padding: 12px; font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+            font-size: 12px; line-height: 1.5; outline: none; transition: border-color 0.2s;
+            box-sizing: border-box; white-space: pre; word-break: break-all;
+        }
+        textarea:focus { border-color: var(--primary); }
+        textarea[readonly] { border-style: solid; border-color: #45475a; }
+        .stat { font-size: 0.9rem; color: var(--success); min-width: 140px; text-align: center; }
+
+        .hint {
+            margin-top: 1.2rem; padding: 12px 14px;
+            background: rgba(255,255,255,0.03); border: 1px solid #45475a; border-radius: 10px;
+            font-size: 0.82rem; color: var(--text-sub); line-height: 1.7;
+        }
+        .hint b { color: var(--text); }
+        .hint code { background: #181825; padding: 1px 6px; border-radius: 4px; color: var(--primary); font-size: 0.78rem; }
+        .hint a { color: var(--primary); text-decoration: none; }
+        .hint a:hover { text-decoration: underline; }
+        @media (max-width: 720px) { .cols { flex-direction: column; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🔁 KRL 角色标签转换器</h1>
+        <p>导入 .krl / .lrc / .txt，转换后自动下载新版（config 块原样保留）</p>
+        <a class="back" href="../index.html">← 返回播放器</a>
+    </div>
+
+    <!-- 文件模式（主流程） -->
+    <div class="upload" id="dropzone">
+        <input type="file" id="fileInput" accept=".krl,.lrc,.txt">
+        <span class="icon">📄</span>
+        <p><b>点击选择或拖入歌词文件</b></p>
+        <p class="sub">支持 .krl / .lrc / .txt</p>
+    </div>
+    <div class="file-info" id="fileInfo" hidden>
+        <span class="fname" id="fileName"></span>
+        <span class="fstat" id="fileStat"></span>
+        <button class="btn-del" id="clearFile">✕ 移除</button>
+    </div>
+    <div class="actions">
+        <button class="btn big" id="convertDownload" disabled>⚡ 转换并下载</button>
+    </div>
+
+    <!-- 粘贴模式（备选） -->
+    <details class="paste-toggle">
+        <summary>或直接粘贴文本</summary>
+        <div class="cols">
+            <div class="col">
+                <label>旧版歌词</label>
+                <textarea id="input" placeholder="【絵名】[00:18:48]才[00:18:74]能...&#10;（config 块也会原样保留）"></textarea>
+            </div>
+            <div class="col">
+                <label>转换结果</label>
+                <textarea id="output" readonly placeholder="转换结果会显示在这里…"></textarea>
+            </div>
+        </div>
+        <div class="actions">
+            <span class="stat" id="stat"></span>
+            <button class="btn ghost" id="swap">⇄ 反向</button>
+            <button class="btn" id="copy">📋 复制</button>
+            <button class="btn" id="download">⬇ 下载 .lrc</button>
+        </div>
+    </details>
+
+    <div class="hint">
+        <b>转换规则：</b><br>
+        ① <code>【A】</code> → <code>【@A】</code>（多角色 <code>【A+B】</code> → <code>【@A+B】</code>，@ 只在开头）<br>
+        ② 已经是 <code>【@A】</code> 的保持不变，不会重复加 @<br>
+        ③ <code>\【A】</code>（转义的字面括号）保持不变<br>
+        ④ 空标签 <code>【】</code> 保持不变<br>
+        ⑤ 时间戳、行内注音 <code>{…|…}</code>、config 块原样保留<br>
+        <br>
+        <b>提示：</b>下载文件名与原文件相同（扩展名不变），转换后建议在原播放器里预览一遍。相关：<a href="../index.html">返回播放器</a>
+    </div>
+</div>
+
+<script>
+(function () {
+    var input = document.getElementById('input');
+    var output = document.getElementById('output');
+    var stat = document.getElementById('stat');
+    var dropzone = document.getElementById('dropzone');
+    var fileInput = document.getElementById('fileInput');
+    var fileInfo = document.getElementById('fileInfo');
+    var fileName = document.getElementById('fileName');
+    var fileStat = document.getElementById('fileStat');
+    var convertDownload = document.getElementById('convertDownload');
+    var currentText = null;
+    var currentName = '';
+
+    // 旧【X】→ 新【@X】。正确处理：\【 转义跳过（连续反斜杠奇数）、已带@跳过、空【】跳过、未闭合【】原样。
+    function convertRoles(text) {
+        var out = '';
+        var count = 0;
+        for (var i = 0; i < text.length; i++) {
+            var ch = text[i];
+            if (ch === '【') {
+                var bs = 0, j = i - 1;
+                while (j >= 0 && text[j] === '\\') { bs++; j--; }
+                if ((bs % 2) === 0) { // 未被转义
+                    var close = text.indexOf('】', i + 1);
+                    if (close !== -1) {
+                        var inner = text.slice(i + 1, close);
+                        if (inner && inner.charAt(0) !== '@') {
+                            out += '【@' + inner + '】';
+                            count++;
+                            i = close;
+                            continue;
+                        }
+                    }
+                }
+            }
+            out += ch;
+        }
+        return { out: out, count: count };
+    }
+
+    // 统一下载
+    function download(text, name) {
+        var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 200);
+    }
+
+    // ---- 文件模式 ----
+    function onFile(file) {
+        if (!file) return;
+        currentName = file.name;
+        fileName.textContent = file.name;
+        var reader = new FileReader();
+        reader.onload = function () {
+            currentText = reader.result || '';
+            var r = convertRoles(currentText);
+            fileStat.textContent = r.count > 0 ? ('将转换 ' + r.count + ' 处标签') : '未发现旧版标签';
+            convertDownload.disabled = false;
+        };
+        reader.readAsText(file, 'utf-8');
+        fileInfo.hidden = false;
+        dropzone.classList.add('has-file');
+        dropzone.querySelector('p b').textContent = '已选择：' + file.name;
+    }
+    fileInput.addEventListener('change', function () { onFile(fileInput.files[0]); });
+    ['dragover', 'dragenter'].forEach(function (ev) {
+        dropzone.addEventListener(ev, function (e) { e.preventDefault(); dropzone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+        dropzone.addEventListener(ev, function (e) { e.preventDefault(); dropzone.classList.remove('dragover'); });
+    });
+    dropzone.addEventListener('drop', function (e) {
+        onFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+    });
+    document.getElementById('clearFile').addEventListener('click', function () {
+        currentText = null; currentName = '';
+        fileInput.value = '';
+        fileInfo.hidden = true;
+        dropzone.classList.remove('has-file');
+        dropzone.querySelector('p b').textContent = '点击选择或拖入歌词文件';
+        convertDownload.disabled = true;
+    });
+    convertDownload.addEventListener('click', function () {
+        if (!currentText) return;
+        var r = convertRoles(currentText);
+        download(r.out, currentName || 'converted.krl');
+    });
+
+    // ---- 粘贴模式 ----
+    function updatePaste() {
+        var r = convertRoles(input.value);
+        output.value = r.out;
+        stat.textContent = r.count > 0 ? ('✓ 已转换 ' + r.count + ' 处标签') : '（未发现旧版标签）';
+    }
+    input.addEventListener('input', updatePaste);
+    updatePaste();
+
+    document.getElementById('swap').addEventListener('click', function () {
+        input.value = output.value.replace(/【@/g, '【');
+        updatePaste();
+    });
+    document.getElementById('copy').addEventListener('click', function () {
+        if (!output.value) return;
+        output.select();
+        output.setSelectionRange(0, output.value.length);
+        try { document.execCommand('copy'); }
+        catch (_) { if (navigator.clipboard) navigator.clipboard.writeText(output.value); }
+        var btn = document.getElementById('copy');
+        var old = btn.textContent;
+        btn.textContent = '✓ 已复制';
+        setTimeout(function () { btn.textContent = old; }, 1200);
+    });
+    document.getElementById('download').addEventListener('click', function () {
+        if (!output.value) return;
+        download(output.value, 'converted.lrc');
+    });
+})();
+</script>
+</body>
+</html>

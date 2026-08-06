@@ -17,130 +17,68 @@
             --error: #f38ba8;
             --border-radius: 12px;
         }
-
         body {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg);
-            color: var(--text);
+            margin: 0; padding: 24px;
+            background-color: var(--bg); color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            display: flex; justify-content: center;
         }
-
         .container {
-            width: 100%;
-            max-width: 800px;
-            padding: 2rem;
-            background-color: var(--surface);
-            border-radius: var(--border-radius);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 100%; max-width: 860px;
+            padding: 2rem; background-color: var(--surface);
+            border-radius: var(--border-radius); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
+        .header { text-align: center; margin-bottom: 1.5rem; }
+        .header h1 { color: var(--primary); margin: 0 0 0.5rem 0; }
+        .header p { color: var(--text-sub); margin: 0; font-size: 0.95rem; }
+        .header .back { display: inline-block; margin-top: 0.6rem; font-size: 0.8rem; color: var(--text-sub); text-decoration: none; }
+        .header .back:hover { color: var(--primary); text-decoration: underline; }
 
-        .header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .header h1 {
-            color: var(--primary);
-            margin: 0 0 0.5rem 0;
-        }
-
-        .header p {
-            color: var(--text-sub);
-            margin: 0;
-            font-size: 0.95rem;
-        }
-
-        .dropzones {
-            display: flex;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
+        .dropzones { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
         .dropzone {
-            flex: 1;
-            border: 2px dashed var(--text-sub);
-            border-radius: var(--border-radius);
-            padding: 2.5rem 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-            background: rgba(255,255,255,0.02);
+            flex: 1; position: relative;
+            border: 2px dashed var(--text-sub); border-radius: var(--border-radius);
+            padding: 2.5rem 1rem; text-align: center; cursor: pointer;
+            transition: all 0.2s ease; background: rgba(255,255,255,0.02);
         }
-
-        .dropzone:hover, .dropzone.dragover {
-            border-color: var(--primary);
-            background: rgba(203, 166, 247, 0.05);
-        }
-
-        .dropzone.has-file {
-            border-color: var(--success);
-            border-style: solid;
-            background: rgba(166, 227, 161, 0.05);
-        }
-
+        .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: rgba(203,166,247,0.05); }
+        .dropzone.has-file { border-color: var(--success); border-style: solid; background: rgba(166,227,161,0.05); }
         .dropzone input {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+            position: absolute; inset: 0; width: 100%; height: 100%;
             opacity: 0; cursor: pointer;
         }
+        .icon { font-size: 2.5rem; margin-bottom: 0.6rem; display: block; }
+        .dropzone strong { display: block; }
+        .file-name { display: block; margin-top: 0.5rem; font-size: 0.9rem; color: var(--success); word-break: break-all; }
+        .file-name.pending { color: var(--text-sub); }
 
-        .icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            display: block;
-        }
-
-        .file-name {
-            display: block;
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
-            color: var(--success);
-            word-break: break-all;
-        }
-
+        .actions { display: flex; justify-content: center; margin: 0.5rem 0; }
         .action-btn {
-            width: 100%;
-            padding: 1.2rem;
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: var(--bg);
-            background-color: var(--primary);
-            border: none;
-            border-radius: var(--border-radius);
-            cursor: pointer;
-            transition: background 0.2s;
+            padding: 0.85rem 2.2rem; font-size: 1.05rem; font-weight: 600;
+            color: var(--bg); background-color: var(--primary);
+            border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s;
         }
+        .action-btn:hover { background-color: var(--primary-hover); }
+        .action-btn:disabled { background-color: var(--surface-hover); color: var(--text-sub); cursor: not-allowed; }
 
-        .action-btn:hover {
-            background-color: var(--primary-hover);
-        }
-        
-        .action-btn:disabled {
-            background-color: var(--surface-hover);
-            color: var(--text-sub);
-            cursor: not-allowed;
-        }
+        .log { margin-top: 0.8rem; font-size: 0.85rem; color: var(--error); text-align: center; }
 
-        .log {
-            margin-top: 1rem;
-            font-size: 0.85rem;
-            color: var(--error);
-            text-align: center;
+        .hint {
+            margin-top: 1.2rem; padding: 12px 14px;
+            background: rgba(255,255,255,0.03); border: 1px solid #45475a; border-radius: 10px;
+            font-size: 0.82rem; color: var(--text-sub); line-height: 1.7;
         }
+        .hint b { color: var(--text); }
+        .hint code { background: #181825; padding: 1px 6px; border-radius: 4px; color: var(--primary); font-size: 0.78rem; }
+        @media (max-width: 720px) { .dropzones { flex-direction: column; } }
     </style>
 </head>
 <body>
-
 <div class="container">
     <div class="header">
-        <h1>春日向双注音合并器</h1>
+        <h1>🎼 KRL 双注音合并器</h1>
         <p>请在 SUG 中分别导出带有「假名」和「罗马音」的春日向文件并拖入下方。</p>
+        <a class="back" href="../index.html">← 返回播放器</a>
     </div>
 
     <div class="dropzones">
@@ -148,18 +86,25 @@
             <input type="file" id="file1" accept=".txt,.krl">
             <span class="icon">🇯🇵</span>
             <strong>1. 导入假名注音</strong>
-            <span class="file-name" id="name1">等待导入...</span>
+            <span class="file-name pending" id="name1">等待导入...</span>
         </div>
         <div class="dropzone" id="zone2">
             <input type="file" id="file2" accept=".txt,.krl">
             <span class="icon">🔤</span>
             <strong>2. 导入罗马音注音</strong>
-            <span class="file-name" id="name2">等待导入...</span>
+            <span class="file-name pending" id="name2">等待导入...</span>
         </div>
     </div>
 
-    <button class="action-btn" id="mergeBtn" disabled>合并为双注音...</button>
+    <div class="actions">
+        <button class="action-btn" id="mergeBtn" disabled>合并为双注音...</button>
+    </div>
     <div class="log" id="logBox"></div>
+
+    <div class="hint">
+        <b>说明：</b>合并结果会以 <code>{漢字|かな>ローマ}</code> 双注音格式自动下载为 <code>Merged_DualRuby.krl</code>。<br>
+        假名与罗马音行若出现字符未对齐，将安全回退为该行假名原句，并在控制台提示。
+    </div>
 </div>
 
 <script>
@@ -179,8 +124,9 @@
         function handleFile(file) {
             if (!file) return;
             nameDisp.textContent = "已加载: " + file.name;
+            nameDisp.classList.remove('pending');
             zone.classList.add('has-file');
-            
+
             const reader = new FileReader();
             reader.onload = e => {
                 if (isKana) kanaText = e.target.result;
@@ -200,14 +146,14 @@
     setupDropzone('zone2', 'file2', 'name2', false);
 
     // ========== 核心 KRL 解析与合并算法 ==========
-    
+
     // 将一整行 KRL 解析为基础字符序列
     function parseToChars(line) {
         const regex = /(\[[^\]]+\])|(\{[^|]+\|[^}]+\})|([^{}[\]]+)/g;
         let match;
         let chars = [];
         let pendingTags = "";
-        
+
         while ((match = regex.exec(line)) !== null) {
             if (match[1]) {
                 pendingTags += match[1];
@@ -216,7 +162,7 @@
                 const idx = content.indexOf('|');
                 const base = content.slice(0, idx);
                 const ruby = content.slice(idx + 1);
-                
+
                 for (let i = 0; i < base.length; i++) {
                     chars.push({
                         char: base[i],
@@ -249,34 +195,34 @@
         const charsR = parseToChars(lineR);
         let out = "";
         let p = 0;
-        
+
         while (p < charsK.length || p < charsR.length) {
             let cK = charsK[p] || { char: "", preTags: "", isRuby: false };
             let cR = charsR[p] || { char: "", preTags: "", isRuby: false };
-            
+
             // 处理行尾遗留的独立标签
             if (cK.char === "" && cR.char === "") {
                 out += cK.preTags;
                 p++;
                 continue;
             }
-            
+
             // 安全性检查：字符不匹配则直接返回假名原句防崩
             if (cK.char !== cR.char) {
                 console.warn(`[第${lineNum}行] 字符未对齐: 假名 "${cK.char}" vs 罗马音 "${cR.char}"`);
-                return lineK; 
+                return lineK;
             }
-            
+
             // 获取当前区块长度
             let lenK = cK.isRuby ? cK.rubyBase.length : 1;
             let lenR = cR.isRuby ? cR.rubyBase.length : 1;
             let len = Math.max(lenK, lenR);
-            
+
             let baseText = "";
             for (let i = 0; i < len; i++) {
                 if (charsK[p+i]) baseText += charsK[p+i].char;
             }
-            
+
             // 拼接逻辑
             if (!cK.isRuby && !cR.isRuby) {
                 // 两边都不是注音（如空格等符号）
@@ -285,7 +231,7 @@
                 // 有一方是注音（SUG逻辑：汉字两边都是注音，平假名罗马音是注音）
                 let r1 = cK.isRuby ? cK.rubyText : "";
                 let r2 = cR.isRuby ? cR.rubyText : "";
-                
+
                 // 如果 cK 原本是文本（带 preTags），在合并为注音块时舍弃原外部 Tag，
                 // 因为 SUG 的罗马音 (r2) 内部必定已经包含了该时间标签。
                 out += `{${baseText}|${r1}>${r2}}`;
@@ -300,16 +246,16 @@
             document.getElementById('logBox').innerText = "";
             const linesK = kanaText.split('\n');
             const linesR = romaText.split('\n');
-            
+
             let mergedLines = [];
             for (let i = 0; i < linesK.length; i++) {
                 const lK = linesK[i].replace(/\r$/, '');
                 const lR = (linesR[i] || '').replace(/\r$/, '');
                 mergedLines.push(mergeLines(lK, lR, i + 1));
             }
-            
+
             const mergedText = mergedLines.join('\n');
-            
+
             // 触发本地下载
             const blob = new Blob([mergedText], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -320,7 +266,7 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch(e) {
             document.getElementById('logBox').innerText = "合并出错: " + e.message;
             console.error(e);

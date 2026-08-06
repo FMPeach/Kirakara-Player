@@ -893,8 +893,11 @@
                                         <button className="text-[10px] text-indigo-400 hover:text-indigo-300 border border-zinc-700 rounded px-2 py-0.5" onClick={()=>lrcFileInputRef.current?.click()}>📄 导入歌词</button>
                                         {lrcRaw && <button className="text-[10px] text-zinc-500 hover:text-red-400" onClick={()=>setLrcRaw('')}>清空</button>}
                                     </div>
-                                    <a href="../DualRuby.html" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-sky-400 hover:text-sky-300 hover:underline text-right">
+                                    <a href="tools/DualRuby.html" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-sky-400 hover:text-sky-300 hover:underline text-right">
                                         只有两份单独不同注音的歌词吗？点我合并…
+                                    </a>
+                                    <a href="tools/convert-roles.html" target="_blank" rel="noopener noreferrer" className="block text-[10px] text-amber-400 hover:text-amber-300 hover:underline text-right">
+                                        旧版【角色】标签？点我转换…
                                     </a>
                                 </section>
 
@@ -1298,7 +1301,7 @@
     <!-- ==================== 公告 ==================== -->
     <script>
     (function () {
-        var ANNOUNCE_KEY = 'kira-announce-role-at-v1.01';
+        var ANNOUNCE_KEY = 'kira-announce-role-at-v1.02';
         try { if (localStorage.getItem(ANNOUNCE_KEY)) return; } catch (_) { return; }
         var content =
             '<h2>📢 角色标签更新公告</h2>' +
@@ -1308,6 +1311,7 @@
                 '<p style="margin:0 0 8px">• 多角色：<code>【@絵名+瑞希】</code></p>' +
                 '<p style="margin:0 0 8px">• <code>【角色】</code> 将不再作为角色标签解析</p>' +
                 '<p style="margin:0 0 8px">如需继续使用角色分色功能，请将已有歌词的 <code>【角色】</code> 替换为 <code>【@角色】</code></p>' +
+                '<p style="margin:0 0 8px">或者点击 <a href="tools/convert-roles.html" target="_blank" style="color:#cba6f7">这里</a>将旧标签转换为新标签。</p>' +
                 '<p style="margin:0 0 8px">在八月底发布的 SUG 新版将会支持新的标签格式</p>' +
                 '<p style="margin:0 0 8px">如有不便还请多多谅解的喵T^T</p>' +
             '</div>' +
