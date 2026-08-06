@@ -884,7 +884,7 @@
                                             setAudioUrl(null);setVideoUrl(null);
                                         }}>✕</button>
                                     </div>
-                                    <textarea className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="@Ruby 或 春日向け 格式...&#13;&#10;歌词内使用【角色】以解析角色..."
+                                    <textarea className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="KRL 或 @Ruby / 春日向け 格式...&#13;&#10;歌词内使用【@角色】以解析角色..."
                                         onDragOver={e=>{e.preventDefault();e.stopPropagation();}}
                                         onDrop={e=>{e.preventDefault();e.stopPropagation();const f=e.dataTransfer.files[0];if(!f)return;if(f.name.endsWith('.krl')){importKrl(f);}else{const r=new FileReader();r.onload=()=>setLrcRaw(r.result||'');r.readAsText(f);}}}
                                     />
@@ -1293,6 +1293,42 @@
             );
         };
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+
+    <!-- ==================== 公告 ==================== -->
+    <script>
+    (function () {
+        var ANNOUNCE_KEY = 'kira-announce-role-at-v1.01';
+        try { if (localStorage.getItem(ANNOUNCE_KEY)) return; } catch (_) { return; }
+        var content =
+            '<h2>📢 角色标签更新公告</h2>' +
+            '<div style="font-size:13px;line-height:1.7;color:#d4d4d8">' +
+                '<p style="margin:0 0 10px">因作者这个笨喵现在才发现角色标签的解析方式存在较大歧义，</br>故从即日起，歌词内的<b>角色标签解析方式将变更为 <code>【@角色】</code></b>，如：</p>' +
+                '<p style="margin:0 0 8px">• 单角色：<code>【@絵名】</code></p>' +
+                '<p style="margin:0 0 8px">• 多角色：<code>【@絵名+瑞希】</code></p>' +
+                '<p style="margin:0 0 8px">• <code>【角色】</code> 将不再作为角色标签解析</p>' +
+                '<p style="margin:0 0 8px">如需继续使用角色分色功能，请将已有歌词的 <code>【角色】</code> 替换为 <code>【@角色】</code></p>' +
+                '<p style="margin:0 0 8px">在八月底发布的 SUG 新版将会支持新的标签格式</p>' +
+                '<p style="margin:0 0 8px">如有不便还请多多谅解的喵T^T</p>' +
+            '</div>' +
+            '<div class="btn-row" style="margin-top:16px">' +
+                '<button class="btn btn-primary" style="flex:1">知道了</button>' +
+            '</div>';
+        var backdrop = document.createElement('div');
+        backdrop.className = 'export-modal-backdrop';
+        backdrop.style.zIndex = '100002';
+        var modal = document.createElement('div');
+        modal.className = 'export-modal';
+        modal.innerHTML = content;
+        backdrop.appendChild(modal);
+        function close() {
+            try { localStorage.setItem(ANNOUNCE_KEY, '1'); } catch (_) {}
+            if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        }
+        backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+        modal.querySelector('button').addEventListener('click', close);
+        document.body.appendChild(backdrop);
+    })();
     </script>
 </body>
 </html>
