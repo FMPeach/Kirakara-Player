@@ -439,6 +439,18 @@
             }, []);
 
             const [showExportModal, setShowExportModal] = useState(false);
+            // AAC 编码能力检测
+            const [aacOk, setAacOk] = useState(true);
+            const checkAacSupport = async () => {
+                try {
+                    if (typeof AudioEncoder === 'undefined') return false;
+                    const r = await AudioEncoder.isConfigSupported({
+                        codec: 'mp4a.40.2', sampleRate: 48000,
+                        numberOfChannels: 2, bitrate: 192000,
+                    });
+                    return !!r.supported;
+                } catch (_) { return false; }
+            };
             const [expW, setExpW] = useState(1920);
             const [expH, setExpH] = useState(1080);
             const [expFps, setExpFps] = useState(60);
@@ -1183,15 +1195,16 @@
                                 <button className="w-full text-xs text-zinc-400 hover:text-red-400 border border-zinc-700 hover:border-red-800 rounded-lg py-1.5 transition-colors" onClick={()=>{cancelRef.current=true;}}>✕ 取消导出</button>
                             </div>}
                         </div>
-                        {!exporting && <button className={`export-fab${(duration>0||audioUrl)?'':' disabled'}`} title={duration>0||audioUrl?'导出视频':'请先加载音频或视频'} disabled={!(duration>0||audioUrl)} onClick={()=>setShowExportModal(true)}>
+                        {!exporting && <button className={`export-fab${(duration>0||audioUrl)?'':' disabled'}`} title={duration>0||audioUrl?'导出视频':'请先加载音频或视频'} disabled={!(duration>0||audioUrl)} onClick={()=>{setShowExportModal(true);checkAacSupport().then(ok=>{setAacOk(ok);if(!ok&&audioUrl&&expFormat==='mp4'){setExpFormat('webm');setExpCodec('vp9');}});}}>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         </button>}
                         {showExportModal && <div className="export-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setShowExportModal(false)}}>
                             <div className="export-modal"><h2>🎬 导出视频</h2>
                                 <div className="space-y-3" style={{marginTop:12}}>
                                     <div className="text-s text-zinc-400 font-semibold">视频设置</div>
+                                    {!aacOk && audioUrl && <div className="text-[10px] text-amber-400">当前浏览器不支持 AAC 音频编码，无法使用 MP4 格式导出</div>}
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4">MP4</option><option value="webm">WebM</option></select></div>
+                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4" disabled={!aacOk && audioUrl}>MP4</option><option value="webm">WebM</option></select></div>
                                         <div><label>视频编码</label><select value={expCodec} onChange={e=>setExpCodec(e.target.value)}>{expFormat==='mp4'?<><option value="h264">H.264</option></>:<><option value="vp9">VP9</option><option value="vp8">VP8</option></>}</select></div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
