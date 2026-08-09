@@ -12,6 +12,7 @@ KiraExport.Renderer = function (opts) {
     const bgImageEnabled = opts.bgImageEnabled || false;
     const bgImageUrl = opts.bgImageUrl || null;
     const titleBackgroundUrl = opts.titleBackgroundUrl || null;
+    const transparent = opts.transparent || false;  // PNG 序列导出：不画背景，字幕保留透明底
 
     // ---- 内部状态 ----
     let offCanvas = null;
@@ -96,6 +97,7 @@ KiraExport.Renderer = function (opts) {
 
         octx.clearRect(0, 0, w, h);
 
+        if (!transparent) {
         // === 背景填充 ===
         const isVideoFrame = videoFrame && !(videoFrame instanceof HTMLVideoElement);
         const isVideoEl = videoFrame && (videoFrame instanceof HTMLVideoElement) && videoFrame.readyState >= 2;
@@ -144,6 +146,7 @@ KiraExport.Renderer = function (opts) {
                 octx.drawImage(titleBgImgObj, (w - dw) / 2, (h - dh) / 2, dw, dh);
             }
             octx.restore();
+        }
         }
 
         // === 标题与歌词 ===

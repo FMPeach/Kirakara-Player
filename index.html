@@ -1202,16 +1202,16 @@
                             <div className="export-modal"><h2>🎬 导出视频</h2>
                                 <div className="space-y-3" style={{marginTop:12}}>
                                     <div className="text-s text-zinc-400 font-semibold">视频设置</div>
-                                    {!aacOk && audioUrl && <div className="text-[10px] text-amber-400">当前浏览器不支持 AAC 音频编码，无法使用 MP4 格式导出</div>}
+                                    {!aacOk && audioUrl && expFormat !== 'png-seq' && <div className="text-[10px] text-amber-400">当前浏览器不支持 AAC 音频编码，无法使用 MP4 格式导出</div>}
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4" disabled={!aacOk && audioUrl}>MP4</option><option value="webm">WebM</option></select></div>
-                                        <div><label>视频编码</label><select value={expCodec} onChange={e=>setExpCodec(e.target.value)}>{expFormat==='mp4'?<><option value="h264">H.264</option></>:<><option value="vp9">VP9</option><option value="vp8">VP8</option></>}</select></div>
+                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4" disabled={!aacOk && audioUrl}>MP4</option><option value="webm">WebM</option><option value="png-seq">图像序列</option></select></div>
+                                        <div><label>视频编码</label>{expFormat==='png-seq'?<select value="png" disabled><option value="png">透明背景PNG</option></select>:<select value={expCodec} onChange={e=>setExpCodec(e.target.value)}>{expFormat==='mp4'?<><option value="h264">H.264</option></>:<><option value="vp9">VP9</option><option value="vp8">VP8</option></>}</select>}</div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label>分辨率</label><div className="flex items-center gap-1"><input type="number" value={expW} onChange={e=>{const r=e.target.value;setExpW(r===''?'':parseInt(r)||1920)}} onBlur={()=>{if(expW===''||expW<0)setExpW(1920)}} className="flex-1"/><span className="text-zinc-500">×</span><input type="number" value={expH} onChange={e=>{const r=e.target.value;setExpH(r===''?'':parseInt(r)||1080)}} onBlur={()=>{if(expH===''||expH<0)setExpH(1080)}} className="flex-1"/></div></div>
                                         <div><label>帧率 (FPS)</label><input type="number" value={expFps} onChange={e=>{const r=e.target.value;setExpFps(r===''?'':parseInt(r)||60)}} onBlur={()=>{if(expFps===''||expFps<0)setExpFps(60)}}/></div>
                                     </div>
-                                    {audioUrl && <>
+                                    {audioUrl && expFormat !== 'png-seq' && <>
                                     <div className="text-s text-zinc-400 font-semibold">音频设置</div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label>采样率</label><select value={expAudioSampleRate} onChange={e=>setExpAudioSampleRate(parseInt(e.target.value))}><option value={48000}>48000Hz</option><option value={44100}>44100Hz</option></select></div>
