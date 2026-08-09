@@ -110,7 +110,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
     }
     const N = allRC.length;
 
-    const textBase = { fontFamily, fontWeight, fontSize: `${fontSize}px`, lineHeight: '1.2', whiteSpace: 'pre', padding: `${safePad}px`, display: 'inline-block', fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none' };
+    const textBase = { fontFamily, fontWeight, fontSize: `${fontSize}px`, lineHeight: '1.2', whiteSpace: 'pre', padding: `${safePad}px`, fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none' };
 
     if (N >= 2) {
         const seamFadePx = 2;
@@ -124,7 +124,7 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         const cjRange = cjBotPct - cjTopPct;
         const seamFadePct = (seamFadePx / totalH) * 100;
 
-        const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
+        const children = [];
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
@@ -144,17 +144,18 @@ function CharMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
                 roleMask = `linear-gradient(to bottom, transparent 0%, transparent ${roleTop - seamFadePct}%, black ${roleTop}%, black ${roleBot}%, transparent ${roleBot + seamFadePct}%, transparent 100%)`;
             }
 
-            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
-                h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
+            children.push(h('span', { style: { gridArea: '1/1', display: 'inline-grid', WebkitMaskImage: roleMask, maskImage: roleMask } },
+                h('span', { style: { ...textBase, gridArea: '1/1', color: rc.colorBefore, textShadow: sB } }, text),
+                h('span', { style: { ...textBase, gridArea: '1/1', color: rc.colorAfter, textShadow: sA, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
         }
-        return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px`, marginRight: marginR } }, ...children);
+        // 使用 inline-grid 替代 relative 定位，内部 gridArea 替代 absolute
+        return h('span', { style: { display: 'inline-grid', verticalAlign: 'bottom', margin: `-${safePad}px`, marginRight: marginR } }, ...children);
     }
 
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
-    return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', margin: `-${safePad}px`, marginRight: marginR } },
-        h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text));
+    return h('span', { style: { display: 'inline-grid', verticalAlign: 'bottom', margin: `-${safePad}px`, marginRight: marginR } },
+        h('span', { style: { ...textBase, gridArea: '1/1', color: colorBefore, textShadow: shadowB } }, text),
+        h('span', { style: { ...textBase, gridArea: '1/1', color: colorAfter, textShadow: shadowA, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)); 
 }
 
 // ---- RubyMask: 注音逐字 clip-path（支持 N 角色垂直等分分层） ----
@@ -170,7 +171,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         fontFamily, fontWeight: fontWeight || 'normal',
         fontSize: `${fontSize}px`, letterSpacing: `${letterSpacing}px`,
         lineHeight: '1.1', whiteSpace: 'pre',
-        padding: `${safePad}px`, display: 'inline-block',
+        padding: `${safePad}px`,
         backfaceVisibility: 'hidden',
         fontKerning: 'none', fontVariantLigatures: 'none', fontOpticalSizing: 'none',
     };
@@ -198,7 +199,7 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
         const cjRange = cjBotPct - cjTopPct;
         const seamFadePct = (seamFadePx / totalH) * 100;
 
-        const children = [h('span', { style: { ...textBase, color: 'transparent' } }, text)];
+        const children = [];
         for (let i = 0; i < N; i++) {
             const rc = allRC[i];
             const sB = genStroke(rc.strokeColorBefore, sw), sA = genStroke(rc.strokeColorAfter, sw);
@@ -217,17 +218,17 @@ function RubyMask({ text, progress, fontSize, letterSpacing, fontFamily, fontWei
                 roleMask = `linear-gradient(to bottom, transparent 0%, transparent ${roleTop - seamFadePct}%, black ${roleTop}%, black ${roleBot}%, transparent ${roleBot + seamFadePct}%, transparent 100%)`;
             }
 
-            children.push(h('span', { style: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, WebkitMaskImage: roleMask, maskImage: roleMask } },
-                h('span', { style: { ...textBase, color: rc.colorBefore, textShadow: sB, position: 'absolute', top: 0, left: 0 } }, text),
-                h('span', { style: { ...textBase, color: rc.colorAfter, textShadow: sA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
+            children.push(h('span', { style: { gridArea: '1/1', display: 'inline-grid', WebkitMaskImage: roleMask, maskImage: roleMask } },
+                h('span', { style: { ...textBase, gridArea: '1/1', color: rc.colorBefore, textShadow: sB } }, text),
+                h('span', { style: { ...textBase, gridArea: '1/1', color: rc.colorAfter, textShadow: sA, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text)));
         }
-        return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } }, ...children);
+        return h('span', { style: { display: 'inline-grid', verticalAlign: 'bottom', ...marginStyle } }, ...children);
     }
 
     const shadowB = genStroke(strokeBefore, sw), shadowA = genStroke(strokeAfter, sw);
-    return h('span', { style: { position: 'relative', display: 'inline-block', verticalAlign: 'bottom', ...marginStyle } },
-        h('span', { style: { ...textBase, color: colorBefore, textShadow: shadowB } }, text),
-        h('span', { style: { ...textBase, color: colorAfter, textShadow: shadowA, position: 'absolute', top: 0, left: 0, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text));
+    return h('span', { style: { display: 'inline-grid', verticalAlign: 'bottom', ...marginStyle } },
+        h('span', { style: { ...textBase, gridArea: '1/1', color: colorBefore, textShadow: shadowB } }, text),
+        h('span', { style: { ...textBase, gridArea: '1/1', color: colorAfter, textShadow: shadowA, clipPath: `inset(-50% calc(${rightClip}% + ${CLIP_OVERPULL}) -50% ${leftClip})` } }, text));
 }
 
 
