@@ -680,6 +680,9 @@
                         }
                         const rest = text.slice(end).trim();
                         if (rest) setLrcRaw(rest);
+                    } else {
+                        // 无 config 块：整个文件作为歌词导入（如 SUG 导出的纯歌词 .krl）
+                        setLrcRaw(text || '');
                     }
                 };
                 r.readAsText(file);
