@@ -351,6 +351,26 @@
             return new Blob([bytes], { type: image.mime || 'application/octet-stream' });
         };
 
+        // 探测文件是否含视频轨：MP4 等容器可能只有音频轨，不能按 MIME 判断
+        const detectVideoTrack = (file) => new Promise((resolve) => {
+            const probe = document.createElement('video');
+            probe.muted = true;
+            probe.preload = 'metadata';
+            const probeUrl = URL.createObjectURL(file);
+            let settled = false;
+            const done = (hasVideo) => {
+                if (settled) return;
+                settled = true;
+                URL.revokeObjectURL(probeUrl);
+                resolve(hasVideo);
+            };
+            probe.onloadedmetadata = () => done(probe.videoWidth > 0 && probe.videoHeight > 0);
+            probe.onerror = () => done(false);
+            probe.src = probeUrl;
+            // 兜底：个别容器 loadedmetadata 迟迟不触发
+            setTimeout(() => done(false), 3000);
+        });
+
         // ==================== 主应用 ====================
         const App = () => {
             const [lrcRaw, setLrcRaw] = useState('');
@@ -689,6 +709,7 @@
             }, [createRoleImageUrl]);
 
             const audioRef = useRef(null), videoRef = useRef(null), requestRef = useRef(null);
+            const pendingMediaIdRef = useRef(0);  // 媒体选择竞态防护：只认最新一次选择
             const oldUrlsRef = useRef({ audio: null, video: null });
             const preludeClockRef = useRef({ playing: false, originTime: 0, originPerformance: 0 });
             const krlImportRef = useRef(null);
@@ -885,10 +906,16 @@
                                                 if (oldUrlsRef.current.audio && oldUrlsRef.current.audio.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.audio);
                                                 if (oldUrlsRef.current.video && oldUrlsRef.current.video.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.video);
                                                 const url=URL.createObjectURL(f);
-                                                if(f.type.startsWith('video/')){setVideoUrl(url);setAudioUrl(url);setBgImageEnabled(false);oldUrlsRef.current={audio:url,video:url};}
-                                                else{setVideoUrl(null);setAudioUrl(url);oldUrlsRef.current={audio:url,video:null};}
+                                                // 有视频轨才进视频模式；MP4 等容器可能只有音频轨（不能按 MIME 判断）
+                                                const myId = ++pendingMediaIdRef.current;
+                                                detectVideoTrack(f).then(hasVideo => {
+                                                    if (pendingMediaIdRef.current !== myId) return; // 已被更新的选择覆盖
+                                                    if (hasVideo) { setVideoUrl(url); setAudioUrl(url); setBgImageEnabled(false); oldUrlsRef.current={audio:url,video:url}; }
+                                                    else { setVideoUrl(null); setAudioUrl(url); oldUrlsRef.current={audio:url,video:null}; }
+                                                });
                                             }} />
                                         <button className="text-[10px] text-red-400 hover:text-red-300 px-1" onClick={()=>{
+                                            pendingMediaIdRef.current++;  // 作废尚未完成的视频轨检测
                                             const a=audioRef.current,v=videoRef.current;
                                             if(a){a.pause();a.removeAttribute('src');a.load();}
                                             if(v){v.pause();v.removeAttribute('src');v.load();}
@@ -919,8 +946,8 @@
                                 {/* 背景图片 */}
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Image className="w-3 h-3"/> 背景图片</label>
-                                    <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={bgImageEnabled} onChange={e=>{const on=e.target.checked;setBgImageEnabled(on);if(on&&bgImageInputRef.current)bgImageInputRef.current.click();if(on&&videoUrl)setVideoUrl(null);if(!on)setBgImageUrl(null);}} className="accent-amber-500 w-3.5 h-3.5"/>
+                                    <label className={`flex items-center gap-2 bg-zinc-800 rounded p-1.5 ${videoUrl ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                        <input type="checkbox" checked={bgImageEnabled} disabled={!!videoUrl} onChange={e=>{const on=e.target.checked;setBgImageEnabled(on);if(on&&bgImageInputRef.current)bgImageInputRef.current.click();if(!on)setBgImageUrl(null);}} className="accent-amber-500 w-3.5 h-3.5"/>
                                         <span className="text-[10px] text-zinc-300 flex-1">启用背景图片</span>
                                         {bgImageEnabled&&bgImageUrl&&<span className="text-[9px] text-amber-400 cursor-pointer px-1" onClick={e=>{e.stopPropagation();e.preventDefault();bgImageInputRef.current?.click();}}>换图</span>}
                                     </label>
