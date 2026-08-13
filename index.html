@@ -169,6 +169,7 @@
 
         const SongTitleSettings = ({ config, setConfig, backgroundImageUrl, onBackgroundFile, onClearBackground }) => {
             const [editingGroupIndex, setEditingGroupIndex] = useState(null);
+            const [openStyleKeys, setOpenStyleKeys] = useState({});
             const songTitle = config.songTitle;
             const infoGroups = songTitle.groups.filter(group => group.kind === 'info');
 
@@ -255,7 +256,33 @@
                                                 className="bg-zinc-800 hover:bg-zinc-700 rounded p-1 text-[9px] text-zinc-400 border-none cursor-pointer">＋ 添加行</button>
                                         </div>
                                     }
-                                    <SongTitleStyleEditor group={group} onChange={patch=>updateGroup(i, g=>({...g, style:{...g.style, ...patch}}))}/>
+                                    {(() => {
+                                        const sk = `${group.kind}-${i}`;
+                                        const open = !!openStyleKeys[sk];
+                                        const st = group.style;
+                                        const alignNames = {left:'左对齐','center-left':'居中左',center:'居中','center-right':'居中右',right:'右对齐'};
+                                        return (
+                                            <div className="border border-zinc-800 rounded mt-1.5 overflow-hidden">
+                                                <button type="button"
+                                                    onClick={()=>setOpenStyleKeys(prev=>({...prev,[sk]:!open}))}
+                                                    className="w-full flex items-center gap-1.5 bg-zinc-800/60 hover:bg-zinc-800 px-2 py-1.5 border-none cursor-pointer text-left">
+                                                    <span className="text-[10px] text-zinc-400 w-4 shrink-0">{open?'▼':'▶'}</span>
+                                                    <span className="text-[10px] font-bold text-zinc-300 shrink-0">样式</span>
+                                                    <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[9px] text-zinc-500">
+                                                        <span className="inline-block w-2 h-2 rounded-full border border-zinc-600 shrink-0" style={{background:st.color||'#fff'}}/>
+                                                        <span className="truncate">{st.fontFamily||'默认字体'} {st.fontSize}px</span>
+                                                        <span className="shrink-0">{st.strokeWidth>0?`描边 ${st.strokeWidth}`:'无描边'}</span>
+                                                        <span className="shrink-0">{alignNames[st.align]||''}</span>
+                                                    </span>
+                                                </button>
+                                                {open && (
+                                                    <div className="p-2 pt-0.5">
+                                                        <SongTitleStyleEditor group={group} onChange={patch=>updateGroup(i, g=>({...g, style:{...g.style, ...patch}}))}/>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             );
                         })}
