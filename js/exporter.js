@@ -1,82 +1,6 @@
 // ==================== Canvas 2D 导出流水线 ====================
 // 依赖: export/container-reader.js, export/decoder-provider.js, export/renderer.js,
 //        export/encoder.js, export/muxer.js, canvas-renderer.js, codec.js, muxer.js
-
-// 极简 ZIP (STORE, 无压缩) 打包：用于 PNG 序列。PNG 本身已无损压缩，STORE
-// 只做容器组装（最快）；CRC32 正确填写，保证 PR/Windows 等解压器接受。
-const _crcTable = (() => {
-    const t = new Uint32Array(256);
-    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c; }
-    return t;
-})();
-function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) { c = _crcTable[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); } return (c ^ 0xFFFFFFFF) >>> 0; }
-
-async function buildStoreZip(entries) { // entries: [{name, blob}]
-    const enc = new TextEncoder();
-    const parts = [];
-    const central = [];
-    let offset = 0;
-    const d = new Date(1980, 0, 1);
-    const dt = { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
-    for (const e of entries) {
-        const nameBytes = enc.encode(e.name);
-        const data = new Uint8Array(await e.blob.arrayBuffer());
-        const crc = crc32(data);
-        const lh = new DataView(new ArrayBuffer(30));
-        lh.setUint32(0, 0x04034b50, true);
-        lh.setUint16(4, 20, true);
-        lh.setUint16(6, 0x0800, true);
-        lh.setUint16(8, 0, true);
-        lh.setUint16(10, dt.time, true);
-        lh.setUint16(12, dt.date, true);
-        lh.setUint32(14, crc, true);
-        lh.setUint32(18, data.length, true);
-        lh.setUint32(22, data.length, true);
-        lh.setUint16(26, nameBytes.length, true);
-        lh.setUint16(28, 0, true);
-        const lhBytes = new Uint8Array(lh.buffer);
-        parts.push(lhBytes, nameBytes, data);
-        central.push({ nameBytes, dataLength: data.length, crc, offset });
-        offset += lhBytes.length + nameBytes.length + data.length;
-    }
-    const centralStart = offset;
-    for (const c of central) {
-        const ch = new DataView(new ArrayBuffer(46));
-        ch.setUint32(0, 0x02014b50, true);
-        ch.setUint16(4, 20, true);
-        ch.setUint16(6, 20, true);
-        ch.setUint16(8, 0x0800, true);
-        ch.setUint16(10, 0, true);
-        ch.setUint16(12, dt.time, true);
-        ch.setUint16(14, dt.date, true);
-        ch.setUint32(16, c.crc, true);
-        ch.setUint32(20, c.dataLength, true);
-        ch.setUint32(24, c.dataLength, true);
-        ch.setUint16(28, c.nameBytes.length, true);
-        ch.setUint16(30, 0, true);
-        ch.setUint16(32, 0, true);
-        ch.setUint16(34, 0, true);
-        ch.setUint16(36, 0, true);
-        ch.setUint32(38, 0, true);
-        ch.setUint32(42, c.offset, true);
-        const chBytes = new Uint8Array(ch.buffer);
-        parts.push(chBytes, c.nameBytes);
-        offset += chBytes.length + c.nameBytes.length;
-    }
-    const centralSize = offset - centralStart;
-    const eocd = new DataView(new ArrayBuffer(22));
-    eocd.setUint32(0, 0x06054b50, true);
-    eocd.setUint16(4, 0, true);
-    eocd.setUint16(6, 0, true);
-    eocd.setUint16(8, entries.length, true);
-    eocd.setUint16(10, entries.length, true);
-    eocd.setUint32(12, centralSize, true);
-    eocd.setUint32(16, centralStart, true);
-    eocd.setUint16(20, 0, true);
-    parts.push(new Uint8Array(eocd.buffer));
-    return new Blob(parts, { type: 'application/zip' });
-}
-
 async function doExportCanvas({
     w, h, fps, expCodec, expFormat,
     duration, totalTime,
@@ -165,7 +89,7 @@ async function doExportCanvas({
 
         const t0 = performance.now(); let lastUp = performance.now();
         const codecLabel = isPngSeq ? 'PNG序列(透明)' : (actualCodec || expCodec);
-        console.log('[Export] ' + w + 'x' + h + ' @' + fps + 'fps  ' + codecLabel + '  ' + totalFrames + 'frames  ' + (hasVideo ? 'video+' : ''));
+        console.log('[Export] ' + w + 'x' + h + ' @' + fps + 'fps  ' + codecLabel + '  ' + totalFrames + 'frames  ' + (hasVideo ? 'video' : ''));
 
         // ========== 渲染循环 ==========
         let firstVideoFrame = null;
@@ -206,7 +130,7 @@ async function doExportCanvas({
             const canvas = renderer.getCanvas();
             if (isPngSeq) {
                 const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-                if (blob) pngBlobs.push({ name: 'frame_' + String(i).padStart(frameDigits, '0') + '.png', blob });
+                if (blob) pngBlobs.push(blob);  // 只存 Blob 引用，绝不 arrayBuffer 复制
             } else {
                 encoder.encode(canvas, targetTime, i);
                 // 周期性 flush（避免编码器内存堆积）
@@ -232,12 +156,12 @@ async function doExportCanvas({
             return;
         }
 
-        // ========== PNG 序列：打包 zip 下载 ==========
+        // ========== PNG 序列：封装 MOV ==========
         if (isPngSeq) {
-            setExpEta('导出中...');
-            const zipBlob = await buildStoreZip(pngBlobs);
-            download(zipBlob, `krkr-png-seq-${w}x${h}-${Date.now()}.zip`);
-            console.log('[Export] PNG 序列导出完毕！');
+            setExpEta('封装中...');
+            const movBlob = MuxMov(pngBlobs, { width: w, height: h, fps });
+            download(movBlob, `krkr-export-${w}x${h}-${Date.now()}.${ext}.mov`);
+            console.log('[Export] 导出完毕！');
             return;  // finally 会 setExporting(false)
         }
 

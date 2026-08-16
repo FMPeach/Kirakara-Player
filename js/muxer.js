@@ -1,4 +1,4 @@
-// ==================== WebM Muxer（离线编码用，带 Cues/SeekHead） ====================
+// ==================== WebM Muxer ====================
 function muxWebM(chunks, opts) {
     const hasAudio = !!(opts.audioChunks && opts.audioChunks.length > 0);
     const audioSampleRate = opts.audioSampleRate || 48000;
@@ -236,4 +236,88 @@ function muxWebM(chunks, opts) {
     }
 
     return new Blob(blobParts, { type: 'video/webm' });
+}
+
+// ==================== MOV Muxer（PNG 图像序列封装） ====================
+function MuxMov(frames, opts) {
+    const width = opts.width, height = opts.height, fps = opts.fps;
+    const sizes = frames.map(b => b.size);
+    const count = sizes.length;
+    if (!count) throw new Error('MOV muxer: 没有帧');
+    if ((width & 1) || (height & 1)) throw new Error('MOV muxer: 宽高须为偶数');
+
+    const fourcc = s => { const b = new Uint8Array(4); for (let i = 0; i < 4; i++) b[i] = s.charCodeAt(i) || 0x20; return b; };
+    const u16 = v => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v); return b; };
+    const u32 = v => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, v >>> 0); return b; };
+    const concat = arr => { let len = 0; for (const a of arr) len += a.length; const out = new Uint8Array(len); let p = 0; for (const a of arr) { out.set(a, p); p += a.length; } return out; };
+    const box = (type, payload) => { const out = new Uint8Array(8 + payload.length); new DataView(out.buffer).setUint32(0, 8 + payload.length); out.set(fourcc(type), 4); out.set(payload, 8); return out; };
+    const identityMatrix = () => concat([
+        u32(0x00010000), u32(0), u32(0),
+        u32(0), u32(0x00010000), u32(0),
+        u32(0), u32(0), u32(0x40000000),
+    ]);
+
+    // 每帧一 chunk：stco 每帧一个 offset；mdat size 用同步 blob.size 提前算出
+    const ftypSize = 20;
+    let off = ftypSize + 8;
+    const offsets = new Array(count);
+    let mdatDataSize = 0;
+    for (let i = 0; i < count; i++) { offsets[i] = off; off += sizes[i]; mdatDataSize += sizes[i]; }
+
+    const ftyp = box('ftyp', concat([fourcc('qt  '), u32(0x00000200), fourcc('qt  ')]));
+    const mdatHeader = concat([u32(8 + mdatDataSize), fourcc('mdat')]);
+
+    // stsd：86 字节 video sample entry ('png ')
+    const entry = new Uint8Array(86);
+    const dv = new DataView(entry.buffer);
+    dv.setUint32(0, 86);
+    entry.set(fourcc('png '), 4);
+    dv.setUint16(14, 1);
+    dv.setUint16(32, width);
+    dv.setUint16(34, height);
+    dv.setUint32(36, 0x00480000);
+    dv.setUint32(40, 0x00480000);
+    dv.setUint16(48, 1);
+    dv.setUint16(82, 32);
+    dv.setInt16(84, -1);
+    const stsd = box('stsd', concat([u32(0), u32(1), entry]));
+
+    const stts = box('stts', concat([u32(0), u32(1), u32(count), u32(1)]));
+    const stsc = box('stsc', concat([u32(0), u32(1), u32(1), u32(1), u32(1)]));
+    const stszParts = [u32(0), u32(0), u32(count)];
+    for (let i = 0; i < count; i++) stszParts.push(u32(sizes[i]));
+    const stsz = box('stsz', concat(stszParts));
+    const stcoParts = [u32(0), u32(count)];
+    for (let i = 0; i < count; i++) stcoParts.push(u32(offsets[i]));
+    const stco = box('stco', concat(stcoParts));
+
+    const vmhd = box('vmhd', concat([u32(0), u16(0), u16(0), u16(0), u16(0)]));
+    const hdlrD = box('hdlr', concat([u32(0), u32(0), fourcc('dhlr'), u32(0), u32(0), u32(0)]));
+    const urlBox = box('url ', concat([u32(1)]));
+    const dref = box('dref', concat([u32(0), u32(1), urlBox]));
+    const dinf = box('dinf', dref);
+    const stbl = box('stbl', concat([stsd, stts, stsc, stsz, stco]));
+    const minf = box('minf', concat([vmhd, hdlrD, dinf, stbl]));
+
+    const mdhd = box('mdhd', concat([u32(0), u32(0), u32(0), u32(fps), u32(count), u16(0x55C4), u16(0)]));
+    const hdlrV = box('hdlr', concat([u32(0), u32(0), fourcc('vide'), u32(0), u32(0), u32(0)]));
+    const mdia = box('mdia', concat([mdhd, hdlrV, minf]));
+
+    const tkhd = box('tkhd', concat([
+        u32(0x00000003), u32(0), u32(0), u32(1), u32(0), u32(count), u32(0), u32(0),
+        u16(0), u16(0), u16(0), u16(0), identityMatrix(),
+        u32(width << 16), u32(height << 16),
+    ]));
+
+    const mvhd = box('mvhd', concat([
+        u32(0), u32(0), u32(0), u32(fps), u32(count), u32(0x00010000),
+        u16(0x0100), u16(0), u32(0), u32(0), identityMatrix(),
+        u32(0), u32(0), u32(0), u32(0), u32(0), u32(0), u32(2),
+    ]));
+
+    const trak = box('trak', concat([tkhd, mdia]));
+    const moov = box('moov', concat([mvhd, trak]));
+
+    const parts = [ftyp, mdatHeader].concat(frames).concat([moov]);
+    return new Blob(parts, { type: 'video/quicktime' });
 }
