@@ -249,6 +249,8 @@ function MuxMov(frames, opts) {
     const fourcc = s => { const b = new Uint8Array(4); for (let i = 0; i < 4; i++) b[i] = s.charCodeAt(i) || 0x20; return b; };
     const u16 = v => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v); return b; };
     const u32 = v => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, v >>> 0); return b; };
+    // 64 位（box largesize / co64 offset 用）。v 为 Number，< 2^53 安全。
+    const u64 = v => { const b = new Uint8Array(8); new DataView(b.buffer).setBigUint64(0, BigInt(v)); return b; };
     const concat = arr => { let len = 0; for (const a of arr) len += a.length; const out = new Uint8Array(len); let p = 0; for (const a of arr) { out.set(a, p); p += a.length; } return out; };
     const box = (type, payload) => { const out = new Uint8Array(8 + payload.length); new DataView(out.buffer).setUint32(0, 8 + payload.length); out.set(fourcc(type), 4); out.set(payload, 8); return out; };
     const identityMatrix = () => concat([
@@ -257,15 +259,21 @@ function MuxMov(frames, opts) {
         u32(0), u32(0), u32(0x40000000),
     ]);
 
-    // 每帧一 chunk：stco 每帧一个 offset；mdat size 用同步 blob.size 提前算出
+    // 每帧一 chunk：co64 每帧一个 offset；mdat size 用同步 blob.size 提前算出
+    // 注意：largesize 头 = size(4) + type(4) + largesize(8) = 16 字节，
+    // 所以首个 chunk 偏移 = ftyp(20) + mdat 头(16) = 36。
     const ftypSize = 20;
-    let off = ftypSize + 8;
+    const mdatHeaderSize = 16;
+    let off = ftypSize + mdatHeaderSize;
     const offsets = new Array(count);
     let mdatDataSize = 0;
     for (let i = 0; i < count; i++) { offsets[i] = off; off += sizes[i]; mdatDataSize += sizes[i]; }
 
     const ftyp = box('ftyp', concat([fourcc('qt  '), u32(0x00000200), fourcc('qt  ')]));
-    const mdatHeader = concat([u32(8 + mdatDataSize), fourcc('mdat')]);
+    // mdat：始终用 64 位 largesize。注意 largesize 字段 = 完整 box 大小
+    // = 16(头) + 数据，不是 8(头) + 数据；写错会导致解析器跳过位置错乱。
+    const mdatTotal = mdatHeaderSize + mdatDataSize;
+    const mdatHeader = concat([u32(1), fourcc('mdat'), u64(mdatTotal)]);
 
     // stsd：86 字节 video sample entry ('png ')
     const entry = new Uint8Array(86);
@@ -287,9 +295,10 @@ function MuxMov(frames, opts) {
     const stszParts = [u32(0), u32(0), u32(count)];
     for (let i = 0; i < count; i++) stszParts.push(u32(sizes[i]));
     const stsz = box('stsz', concat(stszParts));
-    const stcoParts = [u32(0), u32(count)];
-    for (let i = 0; i < count; i++) stcoParts.push(u32(offsets[i]));
-    const stco = box('stco', concat(stcoParts));
+    // chunk offset：始终用 64 位 co64（文件超 4GB 时 stco 的 32 位 offset 溢出）。
+    const co64Parts = [u32(0), u32(count)];
+    for (let i = 0; i < count; i++) co64Parts.push(u64(offsets[i]));
+    const stco = box('co64', concat(co64Parts));
 
     const vmhd = box('vmhd', concat([u32(0), u16(0), u16(0), u16(0), u16(0)]));
     const hdlrD = box('hdlr', concat([u32(0), u32(0), fourcc('dhlr'), u32(0), u32(0), u32(0)]));
