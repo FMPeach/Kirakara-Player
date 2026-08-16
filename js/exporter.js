@@ -160,7 +160,7 @@ async function doExportCanvas({
         if (isPngSeq) {
             setExpEta('封装中...');
             const movBlob = MuxMov(pngBlobs, { width: w, height: h, fps });
-            download(movBlob, `krkr-export-${w}x${h}-${Date.now()}.${ext}.mov`);
+            download(movBlob, `krkr-export-${w}x${h}-${Date.now()}.mov`);
             console.log('[Export] 导出完毕！');
             return;  // finally 会 setExporting(false)
         }
