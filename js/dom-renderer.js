@@ -281,9 +281,6 @@ function LyricLine({ line, config, currentTime }) {
         const rc = rChars[idx];
         const charStart = kanjiStart + (rc.offsetSec || 0);
         const charEnd = (idx < rChars.length - 1) ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart) : kanjiEnd;
-        if (currentTime < charStart) return 0;
-        if (currentTime >= charEnd) return 100;
-        const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
         const pad = config.rubyStrokeWidth ?? Math.max(1, Math.round(config.rubySize * 0.1));
         const fs = config.rubySize;
         const fwRuby = config.rubyBold ? 'bold ' : '';
@@ -299,6 +296,11 @@ function LyricLine({ line, config, currentTime }) {
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
         const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
         const startFrac = (strokeL / total) * 100, endFrac = (strokeR / total) * 100;
+        // 走字完毕必须盖到墨迹+描边右缘（endFrac 可 >100）。若钳回 100，clip 右缘
+        // 停在元素盒边缘，墨迹顶到 em 右缘的字符（全角假名/汉字）会覆盖不全。
+        if (currentTime < charStart) return 0;
+        if (currentTime >= charEnd) return endFrac;
+        const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 
@@ -306,9 +308,6 @@ function LyricLine({ line, config, currentTime }) {
     const getRubyProgress = (g) => {
         if (!g.ruby || g.chars.length === 0) return 0;
         const t0 = g.chars[0].startTime, t1 = g.chars[g.chars.length - 1].endTime;
-        if (currentTime < t0) return 0;
-        if (currentTime >= t1) return 100;
-        const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
         const pad = config.rubyStrokeWidth ?? Math.max(1, Math.round(config.rubySize * 0.1));
         const fs = config.rubySize, fwRuby = config.rubyBold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
@@ -322,6 +321,10 @@ function LyricLine({ line, config, currentTime }) {
         const oL = pad + pL, oR = pad + pR;
         const sL = oL - pad - 1, sR = oR + pad + 1;
         const sF = (sL / total) * 100, eF = (sR / total) * 100;
+        // 走字完毕返回 eF（覆盖到描边右缘，可 >100），不能钳回 100
+        if (currentTime < t0) return 0;
+        if (currentTime >= t1) return eF;
+        const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
         return sF + (rawPct / 100) * (eF - sF);
     };
 
@@ -334,9 +337,6 @@ function LyricLine({ line, config, currentTime }) {
         const rc = rChars[idx];
         const charStart = kanjiStart + (rc.offsetSec || 0);
         const charEnd = (idx < rChars.length - 1) ? kanjiStart + (rChars[idx + 1].offsetSec || kanjiEnd - kanjiStart) : kanjiEnd;
-        if (currentTime < charStart) return 0;
-        if (currentTime >= charEnd) return 100;
-        const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
         const pad = config.ruby2StrokeWidth ?? Math.max(1, Math.round(config.ruby2Size * 0.1));
         const fs = config.ruby2Size;
         const fwRuby = config.ruby2Bold ? 'bold ' : '';
@@ -351,15 +351,16 @@ function LyricLine({ line, config, currentTime }) {
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
         const strokeL = offsetL - pad - 1, strokeR = offsetR + pad + 1;
         const startFrac = (strokeL / total) * 100, endFrac = (strokeR / total) * 100;
+        // 走字完毕返回 endFrac（覆盖到描边右缘），不能钳回 100
+        if (currentTime < charStart) return 0;
+        if (currentTime >= charEnd) return endFrac;
+        const rawPct = ((currentTime - charStart) / (charEnd - charStart)) * 100;
         return startFrac + (rawPct / 100) * (endFrac - startFrac);
     };
 
     const getRuby2Progress = (g) => {
         if (!g.ruby2 || g.chars.length === 0) return 0;
         const t0 = g.chars[0].startTime, t1 = g.chars[g.chars.length - 1].endTime;
-        if (currentTime < t0) return 0;
-        if (currentTime >= t1) return 100;
-        const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
         const pad = config.ruby2StrokeWidth ?? Math.max(1, Math.round(config.ruby2Size * 0.1));
         const fs = config.ruby2Size, fwRuby = config.ruby2Bold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
@@ -373,6 +374,10 @@ function LyricLine({ line, config, currentTime }) {
         const oL = pad + pL, oR = pad + pR;
         const sL = oL - pad - 1, sR = oR + pad + 1;
         const sF = (sL / total) * 100, eF = (sR / total) * 100;
+        // 走字完毕返回 eF（覆盖到描边右缘），不能钳回 100
+        if (currentTime < t0) return 0;
+        if (currentTime >= t1) return eF;
+        const rawPct = ((currentTime - t0) / (t1 - t0)) * 100;
         return sF + (rawPct / 100) * (eF - sF);
     };
 
