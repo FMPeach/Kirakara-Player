@@ -1263,7 +1263,7 @@
                                     <div className="text-s text-zinc-400 font-semibold">视频设置</div>
                                     {!aacOk && audioUrl && expFormat !== 'png-seq' && <div className="text-[10px] text-amber-400">当前浏览器不支持 AAC 音频编码，无法使用 MP4 格式导出</div>}
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4" disabled={!aacOk && audioUrl}>MP4</option><option value="webm">WebM</option><option value="png-seq">图像序列</option></select></div>
+                                        <div><label>容器格式</label><select value={expFormat} onChange={e=>{setExpFormat(e.target.value);setExpCodec(e.target.value==='mp4'?'h264':'vp9');}}><option value="mp4" disabled={!aacOk && audioUrl}>MP4</option><option value="webm">WebM</option><option value="png-seq">MOV</option></select></div>
                                         <div><label>视频编码</label>{expFormat==='png-seq'?<select value="png" disabled><option value="png">透明背景PNG</option></select>:<select value={expCodec} onChange={e=>setExpCodec(e.target.value)}>{expFormat==='mp4'?<><option value="h264">H.264</option></>:<><option value="vp9">VP9</option><option value="vp8">VP8</option></>}</select>}</div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
