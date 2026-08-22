@@ -221,6 +221,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         const ff = config.fontFamily;
         const fw = config.fontBold ? 'bold ' : '';
         const font = `${fw}${fs}px ${ff}`;
+        dcx.font = font; // 布局测量（空格 fallback 走 dcx.measureText）需要主字 font，否则按旧 font 测出窄宽度
         const sw = config.strokeWidth !== undefined ? config.strokeWidth : Math.round(fs * 0.12);
 
         // 主字测量
