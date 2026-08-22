@@ -574,24 +574,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             r2gColorA  = buildRoleGradient(tCtx, r2TextTop, r2TextTop + r2BoxHeight, rRoleColors, 'colorAfter', seamFadePx);
                         }
 
-                        const calcTokenInkBounds = (chars, charWidths, ls, pad, fontStr) => {
-                            let inkLeft = 0, inkRight = 0, dx = 0;
-                            for (let i = 0; i < chars.length; i++) {
-                                const cw = charWidths[i];
-                                const ink = measureGlyphInk(chars[i], fontStr);
-                                const left = dx + (ink.left || 0) - pad - 1;
-                                const right = dx + (ink.right || cw) + pad + 1;
-                                if (i === 0) { inkLeft = left; inkRight = right; } 
-                                else { inkLeft = Math.min(inkLeft, left); inkRight = Math.max(inkRight, right); }
-                                dx += cw + ls;
-                            }
-                            return { inkLeft, inkRight };
-                        };
-
-                        const processRuby2Block = (chars, charWidths, r2xCursor, rawPct, inkL, inkR) => {
-                            const progressF = Math.max(0, Math.min(1, rawPct / 100));
-                            const revealW = progressF * Math.max(0, inkR - inkL);
-
+                        const processRuby2Block = (chars, charWidths, r2xCursor, chInfo) => {
                             if (layerPass === 'B') {
                                 let cxStrokeB = r2xCursor;
                                 for (let i = 0; i < chars.length; i++) {
@@ -604,9 +587,11 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                     cxFillB += charWidths[i] + r2ls;
                                 }
                             } else {
-                                if (rawPct > 0) {
+                                if (chInfo.pct > 0) {
                                     tCtx.save(); tCtx.beginPath();
-                                    tCtx.rect(r2xCursor + inkL, r2TextTop - r2fs, revealW, r2BoxHeight + r2fs * 2);
+                                    // 与 HEAD~3 / 主字 / 注音1 一致的等宽矩形 clip，
+                                    // 基于 calcProgress 的 ink-aware pct（可负值/超100），不钳制走字边界
+                                    tCtx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
                                     tCtx.clip();
                                     let cxStrokeA = r2xCursor;
                                     for (let i = 0; i < chars.length; i++) {
@@ -649,15 +634,10 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 const syl = r2Syllables[ri];
                                 const rcStart = gStart + (syl.offsetSec || (gEnd - gStart) * ri / item.ruby2Chars.length);
                                 const rcEnd = (ri + 1 < item.ruby2Chars.length) ? gStart + (r2Syllables[ri + 1].offsetSec || (gEnd - gStart) * (ri + 1) / item.ruby2Chars.length) : gEnd;
-                                const rcSpan = rcEnd - rcStart;
-                                let rawPct = 0;
-                                if (time >= rcEnd) rawPct = 100;
-                                else if (time > rcStart && rcSpan > 0) rawPct = ((time - rcStart) / rcSpan) * 100;
-                                
-                                const fontStr = `${r2fw}${r2fs}px ${ff}`;
-                                const { inkLeft, inkRight } = calcTokenInkBounds(syl.chars, syl.charWidths, r2ls, r2lw, fontStr);
-                                processRuby2Block(syl.chars, syl.charWidths, r2xCursor, rawPct, inkLeft, inkRight);
-                                
+                                // calcProgress 的 ink-aware 进度（支持负值/超100），对齐 DOM 与主字/注音1
+                                const chInfo = calcProgress(item.ruby2Chars[ri].char, time, rcStart, rcEnd, true, config, undefined,
+                                    { fs: r2fs, pad: r2lw, bold: config.ruby2Bold, letterSpacing: r2ls });
+                                processRuby2Block(syl.chars, syl.charWidths, r2xCursor, chInfo);
                                 r2xCursor += syl.blockW;
                             }
                         } else {
@@ -667,14 +647,10 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2));
                             const r2TotalW = r2CharWidths.reduce((s, w) => s + w, 0) + (r2CharsArr.length > 0 ? r2CharsArr.length - 1 : 0) * r2ls;
                             let r2xCursor = groupCenterX - r2TotalW / 2;
-                            const r2Span = gEnd - gStart;
-                            let rawPct = 0;
-                            if (time >= gEnd) rawPct = 100;
-                            else if (time > gStart && r2Span > 0) rawPct = ((time - gStart) / r2Span) * 100;
-                            
-                            const fontStr = `${r2fw}${r2fs}px ${ff}`;
-                            const { inkLeft, inkRight } = calcTokenInkBounds(r2CharsArr, r2CharWidths, r2ls, r2lw, fontStr);
-                            processRuby2Block(r2CharsArr, r2CharWidths, r2xCursor, rawPct, inkLeft, inkRight);
+                            // 整段 calcProgress（ink-aware pct，支持负值/超100）
+                            const chInfo = calcProgress(item.ruby2, time, gStart, gEnd, true, config, undefined,
+                                { fs: r2fs, pad: r2lw, bold: config.ruby2Bold, letterSpacing: r2ls });
+                            processRuby2Block(r2CharsArr, r2CharWidths, r2xCursor, chInfo);
                         }
                     }
                 }
