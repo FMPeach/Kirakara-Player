@@ -26,7 +26,7 @@
 
     <!-- ===== 逻辑模块 ===== -->
     <script src="js/parser.js"></script>
-    <script src="js/muxer.js?v=1"></script>
+    <script src="js/muxer.js"></script>
     <script src="js/codec.js"></script>
 
     <!-- ===== 渲染引擎 ===== -->
@@ -34,7 +34,7 @@
     <script src="js/canvas-renderer.js"></script>
 
     <!-- ===== 导出流水线 分层架构 ===== -->
-    <script src="js/export/muxer.js?v=1"></script>
+    <script src="js/export/muxer.js"></script>
     <script src="js/export/container-reader.js"></script>
     <script src="js/export/decoder-provider.js"></script>
     <script src="js/export/renderer.js"></script>
@@ -427,7 +427,7 @@
                     return normalizeConfig(parsed);
                 } catch (_) { return normalizeConfig({}); }
             });
-            useEffect(() => { try { /* 持久化前剥离 blob URL 和标题内容 */ const save = JSON.parse(JSON.stringify(normalizeConfig(config))); delete save.line2Bottom; if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && typeof p.image === 'string' && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } /* 标题内容不入库 */ if (save.songTitle && save.songTitle.groups) for (const g of save.songTitle.groups) { if (g.kind === 'title') g.value = ''; else if (g.rows) for (const r of g.rows) { r.before = ''; r.separator = ''; r.after = ''; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
+            useEffect(() => { try { /* 持久化前剥离 blob URL 和标题内容 */ const save = JSON.parse(JSON.stringify(stripUnsupportedConfigFields(normalizeConfig(config)))); delete save.line2Bottom; if (save.characterProfiles) for (const k in save.characterProfiles) { const p = save.characterProfiles[k]; if (p.image && typeof p.image === 'string' && p.image.startsWith('blob:')) { p.image = undefined; p.imageName = undefined; } } /* 标题内容不入库 */ if (save.songTitle && save.songTitle.groups) for (const g of save.songTitle.groups) { if (g.kind === 'title') g.value = ''; else if (g.rows) for (const r of g.rows) { r.before = ''; r.separator = ''; r.after = ''; } } localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch (_) {} }, [config]);
 
             const createRoleImageUrl = useCallback((blob) => {
                 const url = URL.createObjectURL(blob);
@@ -579,7 +579,7 @@
 
             // ---- 工程文件 (.krl) 导入/导出 ----
             const buildKrlConfig = useCallback(async (filterRoles) => {
-                const exp = JSON.parse(JSON.stringify(normalizeConfig(config)));
+                const exp = JSON.parse(JSON.stringify(stripUnsupportedConfigFields(normalizeConfig(config))));
                 if (exp.characterProfiles) {
                     // 导出工程时只保留当前歌词中出现的角色（null=模板导出 保留全部）
                     if (filterRoles !== null) {
@@ -981,7 +981,7 @@
                                         {bgImageEnabled&&bgImageUrl&&<span className="text-[9px] text-amber-400 cursor-pointer px-1" onClick={e=>{e.stopPropagation();e.preventDefault();bgImageInputRef.current?.click();}}>换图</span>}
                                     </label>
                                     <input ref={bgImageInputRef} type="file" accept="image/*" className="hidden" onChange={e=>{const f=e.target.files[0];if(f)setBgImageUrl(URL.createObjectURL(f));}}/>
-                                    {bgImageEnabled&&<div className="flex items-center gap-2 ml-2"><span className="text-[10px] text-zinc-500 w-10">不透明度</span><input type="range" min="0" max="1" step="0.05" value={config.bgImageOpacity} onChange={e=>setConfig({...config,bgImageOpacity:parseFloat(e.target.value)})} className="flex-1 accent-amber-500 h-1"/><span className="text-[10px] text-zinc-500 w-8 text-right">{Math.round(config.bgImageOpacity*100)}%</span></div>}
+                                    {bgImageEnabled&&<div className="flex items-center gap-2 ml-2"><span className="text-[10px] text-zinc-500 w-10">不透明度</span><input type="range" min="0" max="1" step="0.05" value={config.bgImageOpacity ?? 1} onChange={e=>setConfig({...config,bgImageOpacity:parseFloat(e.target.value)})} className="flex-1 accent-amber-500 h-1"/><span className="text-[10px] text-zinc-500 w-8 text-right">{Math.round((config.bgImageOpacity ?? 1)*100)}%</span></div>}
                                 </section>
 
                                 <div className="settings-tab-bar">

@@ -39,7 +39,6 @@ const CONFIG_DEFAULTS = {
     indicatorFadeRatio: 0.0, 
     indicatorOffsetX: 0, 
     indicatorOffsetY: 8,
-    bgImageOpacity: 1.0,
     // 角色配置：
     // { 
     //   roleName: 
@@ -91,6 +90,17 @@ function normalizeConfig(rawConfig) {
         config.line2Y = legacyLine2BottomToY(config);
     }
     delete config.line2Bottom;
+    return config;
+}
+
+// 过滤当前版本不支持的配置
+const SUPPORTED_CONFIG_FIELDS = Object.keys(CONFIG_DEFAULTS);
+
+function stripUnsupportedConfigFields(config) {
+    if (!config || typeof config !== 'object') return config;
+    for (const k of Object.keys(config)) {
+        if (!SUPPORTED_CONFIG_FIELDS.includes(k)) delete config[k];
+    }
     return config;
 }
 
