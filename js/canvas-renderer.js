@@ -126,12 +126,20 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         return Math.max(0, Math.min(1, opacity));
     };
 
-    const drawShadowStrokeText = (dcx, text, x, y, colorOrGrad, width) => {
+    const drawShadowStrokeText = (dcx, text, x, y, colorOrGrad, width, extraPx) => {
         if (width <= 0 || !colorOrGrad) return;
         dcx.save();
         dcx.lineJoin = 'round';
         dcx.miterLimit = 2;
-        dcx.lineWidth = width * 2.2;
+        // 额外加宽按当前画布缩放换算：extraPx 是屏幕像素，逻辑坐标上除以 scale，
+        // 保证实际渲染到屏幕后正好多 extraPx，用于抵消次像素渲染
+        let lineW = width;
+        if (extraPx) {
+            const t = dcx.getTransform();
+            const scale = Math.abs(t.a) || 1;
+            lineW = width + extraPx / scale;
+        }
+        dcx.lineWidth = lineW * 2.2;
         dcx.strokeStyle = colorOrGrad;
         dcx.strokeText(text, x, y);
         dcx.restore();
@@ -442,7 +450,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                     tCtx.save(); tCtx.beginPath();
                                     tCtx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
                                     tCtx.clip();
-                                    drawShadowStrokeText(tCtx, ch, rxCursor, ry, rgStrokeA, rlw);
+                                    drawShadowStrokeText(tCtx, ch, rxCursor, ry, rgStrokeA, rlw, 0.5);
                                     tCtx.fillStyle = rgColorA; tCtx.fillText(ch, rxCursor, ry);
                                     tCtx.restore();
                                 }
@@ -531,7 +539,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 tCtx.save(); tCtx.beginPath();
                                 tCtx.rect(c.x - fs, y - fs * 2.5, (fs - pInfo.pad) + (pInfo.pct / 100) * pInfo.total, fs * 4);
                                 tCtx.clip();
-                                drawShadowStrokeText(tCtx, c.text, c.x, y, gStrokeA, sw);
+                                drawShadowStrokeText(tCtx, c.text, c.x, y, gStrokeA, sw, 0.5);
                                 tCtx.fillStyle = gColorA; tCtx.fillText(c.text, c.x, y);
                                 tCtx.restore();
                             }
@@ -602,7 +610,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                     tCtx.clip();
                                     let cxStrokeA = r2xCursor;
                                     for (let i = 0; i < chars.length; i++) {
-                                        drawShadowStrokeText(tCtx, chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw);
+                                        drawShadowStrokeText(tCtx, chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw, 0.5);
                                         cxStrokeA += charWidths[i] + r2ls;
                                     }
                                     let cxFillA = r2xCursor;
