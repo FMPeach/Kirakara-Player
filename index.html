@@ -487,6 +487,7 @@
             }, []);
 
             const [showExportModal, setShowExportModal] = useState(false);
+            const [showResetConfirm, setShowResetConfirm] = useState(false);
             // AAC 编码能力检测
             const [aacOk, setAacOk] = useState(true);
             const checkAacSupport = async () => {
@@ -1220,7 +1221,7 @@
                                             )}
                                         </div>
                                     </div>
-                                    <button onClick={()=>{setConfig(normalizeConfig({}));try{localStorage.removeItem(STORAGE_KEY);}catch(_){}}} className="w-full bg-zinc-800 hover:bg-red-900/30 text-[10px] text-zinc-500 hover:text-red-400 py-1.5 rounded border border-zinc-700 hover:border-red-800 transition-colors">重置全部设定</button>
+                                    <button onClick={()=>setShowResetConfirm(true)} className="w-full bg-zinc-800 hover:bg-red-900/30 text-[10px] text-zinc-500 hover:text-red-400 py-1.5 rounded border border-zinc-700 hover:border-red-800 transition-colors">重置全部设定</button>
                                 </section>
                             </div>
                         </div>
@@ -1279,6 +1280,12 @@
                                 </div>
                                 <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setShowExportModal(false)}>取消</button><button className="btn btn-primary" onClick={doExport}>开始导出</button></div>
                                 <div className="export-tips mt-3 text-xs text-zinc-400">{expFormat==='mp4'?'':''}</div>
+                            </div>
+                        </div>}
+                        {showResetConfirm && <div className="export-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setShowResetConfirm(false)}}>
+                            <div className="export-modal"><h2>重置全部设定</h2>
+                                <div className="text-xs text-zinc-300 leading-relaxed" style={{marginBottom:16}}>确定要重置所有样式设定吗？<br/>字体、颜色、角色配置等将全部恢复为默认值，此操作不可撤销。</div>
+                                <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setShowResetConfirm(false)}>取消</button><button className="btn btn-primary" style={{background:'#dc2626'}} onClick={()=>{setConfig(normalizeConfig({}));try{localStorage.removeItem(STORAGE_KEY);}catch(_){};setShowResetConfirm(false);}}>确定</button></div>
                             </div>
                         </div>}
                         {showAllRoles && <div className="export-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)setShowAllRoles(false)}}>
