@@ -1380,19 +1380,18 @@
     <!-- ==================== 公告 ==================== -->
     <script>
     (function () {
-        var ANNOUNCE_KEY = 'kira-announce-role-at-v1.02';
+        var ANNOUNCE_KEY = 'kira-announce-role-at-v1.03';
         try { if (localStorage.getItem(ANNOUNCE_KEY)) return; } catch (_) { return; }
         var content =
-            '<h2>📢 角色标签更新公告</h2>' +
+            '<h2>📢 初次使用指引</h2>' +
             '<div style="font-size:13px;line-height:1.7;color:#d4d4d8">' +
-                '<p style="margin:0 0 10px">因作者这个笨喵现在才发现角色标签的解析方式存在较大歧义，</br>故从即日起，歌词内的<b>角色标签解析方式将变更为 <code>【@角色】</code></b>，如：</p>' +
-                '<p style="margin:0 0 8px">• 单角色：<code>【@絵名】</code></p>' +
-                '<p style="margin:0 0 8px">• 多角色：<code>【@絵名+瑞希】</code></p>' +
-                '<p style="margin:0 0 8px">• <code>【角色】</code> 将不再作为角色标签解析</p>' +
-                '<p style="margin:0 0 8px">如需继续使用角色分色功能，请将已有歌词的 <code>【角色】</code> 替换为 <code>【@角色】</code></p>' +
-                '<p style="margin:0 0 8px">或者点击 <a href="tools/convert-roles.html" target="_blank" style="color:#cba6f7">这里</a>将旧标签转换为新标签。</p>' +
-                '<p style="margin:0 0 8px">在八月底发布的 SUG 新版将会支持新的标签格式</p>' +
-                '<p style="margin:0 0 8px">如有不便还请多多谅解的喵T^T</p>' +
+                '<p style="margin:0 0 10px">欢迎使用 Kirakara Player 的喵！</p>' +
+                '<p style="margin:0 0 8px">关于这个网页的使用，这里就简单介绍一下基本用法：</p>' +
+                '<p style="margin:0 0 8px">1. 点击左上角的<code>「选择文件」</code>按钮，选择本地音频或视频文件。</p>' +
+                '<p style="margin:0 0 8px">2. 点击<code>「导入歌词」</code>按钮，选择在打轴软件导出的 LRC/KRL 文件。</p>' +
+                '<p style="margin:0 0 8px">3. 调整左侧面板参数，点击<code>「播放」</code>按钮，预览歌词效果。</p>' +
+                '<p style="margin:0 0 8px">4. 点击右下角的<code>「导出视频」</code>按钮，生成视频文件。</p>' +
+                '<span style="margin:0 0 8px">总之，这个网页的使用就是这样的喵！如果你遇到了 Bug 或者有任何功能建议，欢迎</span><a href="https://github.com/FMPeach/Kirakara-Player/issues" target="_blank">提issue</a><span style="margin:0 0 8px">的喵！</span>' +
             '</div>' +
             '<div class="btn-row" style="margin-top:16px">' +
                 '<button class="btn btn-primary" style="flex:1">知道了</button>' +
