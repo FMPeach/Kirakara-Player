@@ -79,6 +79,26 @@ KiraExport.Mp4Reader = {
             }, 1000);
         });
 
+        // MP4 的 edit list 会把媒体轨中的某个时间点映射到影片时间轴起点。
+        // MP4Box 提取出的 cts/dts 仍是媒体轨原始时间；不应用该偏移时，
+        // 常见的 H.264 B 帧文件会在导出开头额外停留数帧，并截掉结尾。
+        const edits = trackInfo.edits || [];
+        let movieStartSec = 0;
+        for (const edit of edits) {
+            if (edit.media_time < 0) {
+                movieStartSec += edit.segment_duration / trackInfo.movie_timescale;
+                continue;
+            }
+            if ((edit.media_rate_integer ?? 1) !== 1 || (edit.media_rate_fraction ?? 0) !== 0) break;
+
+            const mediaStartSec = edit.media_time / trackInfo.timescale;
+            for (const sample of samples) {
+                sample.timeSec = movieStartSec + sample.timeSec - mediaStartSec;
+                sample.dtsSec = movieStartSec + sample.dtsSec - mediaStartSec;
+            }
+            break;
+        }
+
         const rawCodec = trackInfo.codec || '';
         const isAVC = rawCodec.startsWith('avc1') || rawCodec.startsWith('avc3');
         const isHEVC = rawCodec.startsWith('hvc1') || rawCodec.startsWith('hev1');
@@ -146,11 +166,16 @@ KiraExport.Mp4Reader = {
 
         if (isAVC && !codecDesc) throw new Error(rawCodec + ' 缺少 codec description');
 
+        const editDuration = edits.reduce((total, edit) =>
+            total + edit.segment_duration / trackInfo.movie_timescale, 0);
+        const duration = editDuration || samples.reduce((end, sample) =>
+            Math.max(end, sample.timeSec + sample.durationSec), 0);
+
         return {
             codec: trackInfo.codec || rawCodec,
             width: trackInfo.track_width || trackInfo.video.width,
             height: trackInfo.track_height || trackInfo.video.height,
-            duration: samples.length > 0 ? samples[samples.length - 1].timeSec + samples[samples.length - 1].durationSec : 0,
+            duration,
             samples,
             codecDescription: codecDesc,
             _rawCodec: rawCodec,

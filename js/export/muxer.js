@@ -38,6 +38,9 @@ KiraExport.Mp4Muxer = {
         var file = MP4Box.createFile();
         var timescale = 1000000;
         var frameDuration = Math.round(timescale / fps);
+        // mp4box 0.5.2 用 falsy 判断 first_dts；首样本为 0 时会在第二帧
+        // 错误地重设时间原点。整体偏移 1 tick，写出的 tfdt 仍从 0 开始。
+        var timestampBias = 1;
 
         var toAB = function (u8) {
             if (!u8) return new ArrayBuffer(0);
@@ -52,13 +55,14 @@ KiraExport.Mp4Muxer = {
             avcDecoderConfigRecord: toAB(finalAvcC),
         });
         for (var i = 0; i < videoChunks.length; i++) {
-            var ts = toTicks(videoChunks[i].timestamp);
+            var rawTs = toTicks(videoChunks[i].timestamp);
+            var ts = rawTs + timestampBias;
             var dur;
             if (i + 1 < videoChunks.length) {
-                dur = toTicks(videoChunks[i + 1].timestamp) - ts;
+                dur = toTicks(videoChunks[i + 1].timestamp) - rawTs;
             } else {
                 dur = i > 0
-                    ? ts - toTicks(videoChunks[i - 1].timestamp)
+                    ? rawTs - toTicks(videoChunks[i - 1].timestamp)
                     : frameDuration;
             }
             file.addSample(videoTrackId, toAB(videoChunks[i].data), {
@@ -91,7 +95,7 @@ KiraExport.Mp4Muxer = {
             mp4a.boxes.push(esds);
 
             for (var ai = 0; ai < audioChunks.length; ai++) {
-                var cts = ai * 1024;
+                var cts = ai * 1024 + timestampBias;
                 file.addSample(audioTrackId, toAB(audioChunks[ai].data), {
                     duration: 1024, dts: cts, cts: cts, is_sync: true,
                 });

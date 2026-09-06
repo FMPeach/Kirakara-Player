@@ -61,39 +61,24 @@ KiraExport.WebCodecsDecoder = function (opts) {
 
         if (frameQueue.length === 0) return null;
 
-        // Path B: 首帧已到达或超过 target → 精确匹配
-        if (frameQueue[0].timeSec + EPS >= targetSec) {
-            const f = frameQueue[0].frame;
-            const ts = frameQueue[0].timeSec;
+        const current = frameQueue[0];
+
+        // 目标早于视频首帧时只能使用首帧；其余时刻一律保持最近一张
+        // PTS <= target 的源帧，避免取帧结果受下一帧是否已经解码影响。
+        if (current.timeSec > targetSec + EPS || frameQueue.length >= 2) {
+            const ts = current.timeSec;
             if (ts === _lastFrameTS) { _reuseCount++; if (_reuseCount > 10) console.warn('[Decoder] ⚠️ 连续复用同一帧 ' + _reuseCount + ' 次  timeSec=' + ts.toFixed(4) + '  targetSec=' + targetSec.toFixed(4) + '  queue.length=' + frameQueue.length); }
             else { _reuseCount = 1; _lastFrameTS = ts; }
-            return { frame: f, timeSec: ts };
+            return { frame: current.frame, timeSec: ts };
         }
 
-        // 搜索第一个 >= targetSec 的帧
-        for (let fi = 0; fi < frameQueue.length; fi++) {
-            if (frameQueue[fi].timeSec + EPS >= targetSec) {
-                for (let dj = 0; dj < fi; dj++) try { frameQueue[dj].frame.close(); } catch (_) { }
-                frameQueue.splice(0, fi);
-                _notifyDrainWaiters();
-                const ts = frameQueue[0].timeSec;
-                return { frame: frameQueue[0].frame, timeSec: ts };
-            }
+        // 队列暂时只有一张过去帧。短距离可直接复用；距离过大则等待
+        // decoder 给出下一张帧，以免把尚未解出的帧误判为不存在。
+        const drift = targetSec - current.timeSec;
+        if (drift <= MAX_DRIFT + EPS || decodeDone) {
+            return { frame: current.frame, timeSec: current.timeSec };
         }
 
-        // 所有帧都 < targetSec → 检查最后一帧漂移
-        const lastIdx = frameQueue.length - 1;
-        const lastDrift = targetSec - frameQueue[lastIdx].timeSec;
-
-        if (lastDrift <= MAX_DRIFT || decodeDone) {
-            for (let dj = 0; dj < lastIdx; dj++) try { frameQueue[dj].frame.close(); } catch (_) { }
-            const lastItem = frameQueue[lastIdx];
-            frameQueue.splice(0, lastIdx);
-            _notifyDrainWaiters();
-            return { frame: lastItem.frame, timeSec: lastItem.timeSec };
-        }
-
-        // 漂移过大且解码未完成 → 需要等待新帧
         return { needWait: true };
     };
 
