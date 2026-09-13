@@ -34,9 +34,9 @@
     <script src="js/canvas-renderer.js"></script>
 
     <!-- ===== 导出流水线 分层架构 ===== -->
-    <script src="js/export/muxer.js"></script>
-    <script src="js/export/container-reader.js"></script>
-    <script src="js/export/decoder-provider.js"></script>
+    <script src="js/export/muxer.js?v=2"></script>
+    <script src="js/export/container-reader.js?v=2"></script>
+    <script src="js/export/decoder-provider.js?v=2"></script>
     <script src="js/export/renderer.js"></script>
     <script src="js/export/encoder.js"></script>
     <script src="js/export/audio-encoder.js"></script>
@@ -1023,6 +1023,7 @@
                                         {[['主字大小','fontSize',32,'int',10],['注音大小','rubySize',12,'int',5],['注音上推','rubyOffset',0,'int'],['主字间距','letterSpacing',0,'float'],['注音字距','rubyLetterSpacing',0,'float']].map(([l,k,fb,t,mn])=>(
                                             <div key={k}><span className="text-[9px] text-zinc-500">{l}</span><input type="number" value={config[k]} step={t==='float'?'0.1':'1'} min={mn!=null?mn:''} onChange={e=>{const r=e.target.value;setConfig({...config,[k]:r===''?'':(t==='float'?parseFloat:parseInt)(r)||fb})}} onBlur={()=>{if(config[k]===''||(mn!=null&&config[k]<mn))setConfig({...config,[k]:mn!=null?mn:0})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                         ))}
+                                        <div><span className="text-[9px] text-zinc-500">字宽比例 (%)</span><input type="number" min="50" max="200" step="1" value={config.charScaleX===''?'':Math.round((config.charScaleX??1)*100)} onChange={e=>{const r=e.target.value;setConfig({...config,charScaleX:r===''?'':Number(r)/100})}} onBlur={()=>{const v=Number(config.charScaleX);setConfig({...config,charScaleX:Number.isFinite(v)&&v>0?Math.min(2,Math.max(0.5,v)):1})}} className="w-full bg-zinc-800 rounded p-1.5 text-center text-[10px] border border-zinc-700"/></div>
                                     </div>
                                     {window._hasDualRuby && h('div', { className: 'space-y-1.5' },
                                         h('span', { className: 'text-[9px] text-indigo-400 font-bold' }, '♪ 第二注音'),

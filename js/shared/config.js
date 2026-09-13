@@ -3,6 +3,7 @@
 const CONFIG_DEFAULTS = {
     fontSize: 64, 
     letterSpacing: 9,
+    charScaleX: 1, // 横向字宽比例（0.5-2.0，50%-200%），主字+注音跟随
     fontFamily: "'Microsoft YaHei', sans-serif", 
     fontBold: true,
     rubySize: 26, 
@@ -21,6 +22,10 @@ const CONFIG_DEFAULTS = {
     strokeColorBefore: '#000000', 
     strokeColorAfter: '#ffffff', 
     strokeWidth: 5,
+    // 走字起始阈值（%）：> 0 时启用港版字幕机式跳走 —— 进度未到阈值前完全不显示
+    // 走字后内容，一到阈值就从该位置（字框 %）顺跳起步；0 = 从墨水左缘起步；
+    // 负值 = 退回含左侧留白的旧走法。
+    walkStartPct: 0,
     line1X: 128, 
     line1Y: 430, 
     line2Right: 128, 
@@ -67,6 +72,10 @@ const CONFIG_DEFAULTS = {
     songTitle: createDefaultSongTitleConfig(),
 };
 
+// 只认 JS 硬编码值的字段：不写入持久化，也不接受历史存档 / 导入覆盖。
+// 走字起始阈值属于调试期参数 —— 改 config.js 立即生效，不会被 localStorage 旧值压住。
+const CONFIG_HARDCODED_FIELDS = ['walkStartPct'];
+
 const STORAGE_KEY = 'karaoke-proto-config';
 
 function legacyLine2BottomToY(config) {
@@ -85,6 +94,8 @@ function getLine2Y(config) {
 function normalizeConfig(rawConfig) {
     const raw = rawConfig || {};
     const config = { ...CONFIG_DEFAULTS, ...raw };
+    // 硬编码字段始终以 JS 值为准（历史存档 / 导入不覆盖）
+    for (const key of CONFIG_HARDCODED_FIELDS) config[key] = CONFIG_DEFAULTS[key];
     config.songTitle = normalizeSongTitleConfig(raw.songTitle);
     if (raw.line2Y === undefined && raw.line2Bottom !== undefined) {
         config.line2Y = legacyLine2BottomToY(config);
@@ -99,7 +110,10 @@ const SUPPORTED_CONFIG_FIELDS = Object.keys(CONFIG_DEFAULTS);
 function stripUnsupportedConfigFields(config) {
     if (!config || typeof config !== 'object') return config;
     for (const k of Object.keys(config)) {
-        if (!SUPPORTED_CONFIG_FIELDS.includes(k)) delete config[k];
+        if (!SUPPORTED_CONFIG_FIELDS.includes(k)
+                || CONFIG_HARDCODED_FIELDS.includes(k)) {
+            delete config[k];
+        }
     }
     return config;
 }

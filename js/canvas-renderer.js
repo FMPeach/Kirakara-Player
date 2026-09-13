@@ -3,6 +3,52 @@
 
 window._labelImgCache = window._labelImgCache || {};
 
+// 叠叠乐正方形轮廓：每条边 perEdge 点，去重角点后共 32 向（与 DOM genStroke 一致）
+function _squareDirPoints(perEdge) {
+    const pts = [];
+    const seen = new Set();
+    const add = (x, y) => {
+        const k = `${x.toFixed(4)},${y.toFixed(4)}`;
+        if (seen.has(k)) return;
+        seen.add(k);
+        pts.push([x, y]);
+    };
+    const corners = [
+        [[-1, -1], [1, -1]],
+        [[1, -1], [1, 1]],
+        [[1, 1], [-1, 1]],
+        [[-1, 1], [-1, -1]],
+    ];
+    for (let e = 0; e < 4; e++) {
+        const [a, b] = corners[e];
+        for (let i = 0; i < perEdge; i++) {
+            const c = i / (perEdge - 1);
+            add(a[0] + (b[0] - a[0]) * c, a[1] + (b[1] - a[1]) * c);
+        }
+    }
+    return pts;
+}
+const STROKE_DIRS_32 = _squareDirPoints(9);
+const _canvasSolidStrokeCache = new Map();
+function _canvasSolidSquareOffsets(width) {
+    const radius = Math.max(0, Number(width) || 0);
+    const key = radius.toFixed(3);
+    if (_canvasSolidStrokeCache.has(key)) return _canvasSolidStrokeCache.get(key);
+    const axis = [-radius];
+    for (let v = Math.ceil(-radius); v <= Math.floor(radius); v++) {
+        if (v > -radius && v < radius) axis.push(v);
+    }
+    if (radius > 0) axis.push(radius);
+    const points = [];
+    for (const y of axis) {
+        for (const x of axis) {
+            if (x !== 0 || y !== 0) points.push([x, y]);
+        }
+    }
+    _canvasSolidStrokeCache.set(key, points);
+    return points;
+}
+
 function applyCanvasTextMode(ctx) {
     if (ctx.fontKerning !== undefined) ctx.fontKerning = 'none';
     if (ctx.textRendering !== undefined) ctx.textRendering = 'optimizeSpeed';
@@ -98,6 +144,8 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         return;
     }
     const EXIT_BUF = 2.0;
+    const charScaleRaw = Number(config.charScaleX);
+    const charScaleX = Number.isFinite(charScaleRaw) && charScaleRaw > 0 ? charScaleRaw : 1;
 
     let l1 = null, l2 = null, l1Para = -1, l2Para = -1, l1Walk = false, l2Walk = false;
     for (const line of lyrics) {
@@ -126,22 +174,36 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
         return Math.max(0, Math.min(1, opacity));
     };
 
-    const drawShadowStrokeText = (dcx, text, x, y, colorOrGrad, width, extraPx) => {
-        if (width <= 0 || !colorOrGrad) return;
+    const drawScaledFillText = (dcx, text, x, y, glyphScaleX = charScaleX) => {
+        const sx = Number.isFinite(glyphScaleX) && glyphScaleX > 0 ? glyphScaleX : 1;
+        if (sx === 1) {
+            dcx.fillText(text, x, y);
+            return;
+        }
         dcx.save();
-        dcx.lineJoin = 'round';
-        dcx.miterLimit = 2;
-        // 额外加宽按当前画布缩放换算：extraPx 是屏幕像素，逻辑坐标上除以 scale，
-        // 保证实际渲染到屏幕后正好多 extraPx，用于抵消次像素渲染
-        let lineW = width;
+        dcx.translate(x, y);
+        dcx.scale(sx, 1);
+        dcx.fillText(text, 0, 0);
+        dcx.restore();
+    };
+
+    // 字形先做横向缩放，描边位移再按原始像素叠加，因此字宽不会改变描边粗细。
+    const drawShadowStrokeText = (dcx, text, x, y, colorOrGrad, width, extraPx, glyphScaleX = charScaleX) => {
+        if (width <= 0 || !colorOrGrad) return;
+        const sx = Number.isFinite(glyphScaleX) && glyphScaleX > 0 ? glyphScaleX : 1;
+        dcx.save();
+        dcx.fillStyle = colorOrGrad;
+        let maxR = width;
         if (extraPx) {
             const t = dcx.getTransform();
             const scale = Math.abs(t.a) || 1;
-            lineW = width + extraPx / scale;
+            maxR = width + extraPx / scale;
         }
-        dcx.lineWidth = lineW * 2.2;
-        dcx.strokeStyle = colorOrGrad;
-        dcx.strokeText(text, x, y);
+        dcx.translate(x, y);
+        dcx.scale(sx, 1);
+        for (const [x, y] of _canvasSolidSquareOffsets(maxR)) {
+            dcx.fillText(text, x / sx, y);
+        }
         dcx.restore();
     };
 
@@ -320,9 +382,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             const layoutChars = [];
             for (let ci = 0; ci < g.chars.length; ci++) {
                 const c = g.chars[ci];
-                let charW = measureTotalWidth(c.text, fs, ff, 0, fw.trim() || 'normal');
-                if (charW <= 0 || /^[\s\u3000]$/.test(c.text)) charW = dcx.measureText(c.text).width;
-                if (charW <= 0) charW = fs * 0.3;
+                let charW = measureTotalWidth(c.text, fs, ff, 0, fw.trim() || 'normal') * charScaleX;
+                if (charW <= 0 || /^[\s\u3000]$/.test(c.text)) charW = dcx.measureText(c.text).width * charScaleX;
+                if (charW <= 0) charW = fs * 0.3 * charScaleX;
                 layoutChars.push({ ...c, w: charW });
                 groupW += charW; 
                 if (ci < g.chars.length - 1) groupW += ls;
@@ -397,7 +459,9 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         tCtx.fillStyle = labelColor;
                         let labelX = 0;
                         for (let i = 0; i < item.chars.length; i++) {
-                            drawShadowStrokeText(tCtx, item.chars[i], labelX, 0, labelStroke, config.strokeWidth / (item.scale || 1));
+                            // 先描边（叠叠乐在字形后面），后画字形
+                            drawShadowStrokeText(tCtx, item.chars[i], labelX, 0, labelStroke, config.strokeWidth / (item.scale || 1), 0, 1);
+                            tCtx.fillStyle = labelColor;
                             tCtx.fillText(item.chars[i], labelX, 0);
                             labelX += item.widths[i] + (i < item.chars.length - 1 ? ls : 0);
                         }
@@ -444,15 +508,34 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
 
                         const processRuby = (ch, cw, chInfo, rxCursor) => {
                             if (layerPass === 'B') {
+                                // 先描边（叠叠乐在字形后面），后画字形
                                 drawShadowStrokeText(tCtx, ch, rxCursor, ry, rgStrokeB, rlw);
-                                tCtx.fillStyle = rgColorB; tCtx.fillText(ch, rxCursor, ry);
+                                tCtx.fillStyle = rgColorB; drawScaledFillText(tCtx, ch, rxCursor, ry);
                             } else {
                                 if (chInfo.pct > 0) {
+                                    const baseW = (rfs * charScaleX - chInfo.pad) + (chInfo.pct / 100) * chInfo.total;
+                                    const left = rxCursor - rfs * charScaleX, top = ry - rfs * 2.5, height = rfs * 4;
+                                    const curtainX = left + baseW;
+                                    // 先走字后描边：描边 = 文字按正方形排布的各方向偏移副本，
+                                    // 每份副本的裁剪进度都等于走字进度加上自己的偏移，不统一硬切。
+                                    tCtx.save();
+                                    tCtx.fillStyle = rgStrokeA;
+                                    const rwA = rlw + 0.5;
+                                    for (const [dx, dy] of STROKE_DIRS_32) {
+                                        const w = (curtainX + dx * rwA) - left;
+                                        if (w <= 0) continue;
+                                        tCtx.save(); tCtx.beginPath();
+                                        tCtx.rect(left, top, w, height);
+                                        tCtx.clip();
+                                        drawScaledFillText(tCtx, ch, rxCursor + dx * rwA, ry + dy * rwA);
+                                        tCtx.restore();
+                                    }
+                                    tCtx.restore();
+                                    // 字形：按 baseW 单独裁剪
                                     tCtx.save(); tCtx.beginPath();
-                                    tCtx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
+                                    tCtx.rect(left, top, baseW, height);
                                     tCtx.clip();
-                                    drawShadowStrokeText(tCtx, ch, rxCursor, ry, rgStrokeA, rlw, 0.5);
-                                    tCtx.fillStyle = rgColorA; tCtx.fillText(ch, rxCursor, ry);
+                                    tCtx.fillStyle = rgColorA; drawScaledFillText(tCtx, ch, rxCursor, ry);
                                     tCtx.restore();
                                 }
                             }
@@ -463,7 +546,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             const flatChars = [];
                             for (const rc of item.rubyChars) {
                                 const chars = [...rc.char];
-                                for (const ch of chars) flatChars.push({ char: ch, offsetSec: rc.offsetSec, width: measureTotalWidth(ch, rfs, ff, 0, rfwStr) });
+                                for (const ch of chars) flatChars.push({ char: ch, offsetSec: rc.offsetSec, width: measureTotalWidth(ch, rfs, ff, 0, rfwStr) * charScaleX });
                             }
                             const rTotalW = flatChars.reduce((s, fc) => s + fc.width, 0) + (flatChars.length > 0 ? flatChars.length - 1 : 0) * rls;
                             let rxCursor = groupCenterX - rTotalW / 2;
@@ -489,7 +572,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         } else {
                             const rCharsArr = [...item.ruby];
                             const rfwStr2 = config.rubyBold ? 'bold' : 'normal';
-                            const rCharWidths = rCharsArr.map(ch => measureTotalWidth(ch, rfs, ff, 0, rfwStr2));
+                            const rCharWidths = rCharsArr.map(ch => measureTotalWidth(ch, rfs, ff, 0, rfwStr2) * charScaleX);
                             const rTotalW = rCharWidths.reduce((s, w) => s + w, 0) + (rCharsArr.length > 0 ? rCharsArr.length - 1 : 0) * rls;
                             let rxCursor = groupCenterX - rTotalW / 2;
                             const rSpan = gEnd - gStart;
@@ -531,17 +614,36 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         if (layerPass === 'B') {
                             const gStrokeB = buildRoleGradient(tCtx, textTop, textTop + boxHeight, rRoleColors, 'strokeBefore', seamFadePx);
                             const gColorB  = buildRoleGradient(tCtx, textTop, textTop + boxHeight, rRoleColors, 'colorBefore', seamFadePx);
+                            // 先描边（叠叠乐在字形后面），后画字形
                             drawShadowStrokeText(tCtx, c.text, c.x, y, gStrokeB, sw);
-                            tCtx.fillStyle = gColorB; tCtx.fillText(c.text, c.x, y);
+                            tCtx.fillStyle = gColorB; drawScaledFillText(tCtx, c.text, c.x, y);
                         } else {
                             if (pInfo.pct > 0) {
                                 const gStrokeA = buildRoleGradient(tCtx, textTop, textTop + boxHeight, rRoleColors, 'strokeAfter', seamFadePx);
                                 const gColorA  = buildRoleGradient(tCtx, textTop, textTop + boxHeight, rRoleColors, 'colorAfter', seamFadePx);
+                                const baseW = (fs * charScaleX - pInfo.pad) + (pInfo.pct / 100) * pInfo.total;
+                                const left = c.x - fs * charScaleX, top = y - fs * 2.5, height = fs * 4;
+                                const curtainX = left + baseW;
+                                // 先走字后描边：描边 = 文字按正方形排布的各方向偏移副本，
+                                // 每份副本的裁剪进度都等于走字进度加上自己的偏移，不统一硬切。
+                                tCtx.save();
+                                tCtx.fillStyle = gStrokeA;
+                                const swA = sw + 0.5;
+                                for (const [dx, dy] of STROKE_DIRS_32) {
+                                    const w = (curtainX + dx * swA) - left;
+                                    if (w <= 0) continue;
+                                    tCtx.save(); tCtx.beginPath();
+                                    tCtx.rect(left, top, w, height);
+                                    tCtx.clip();
+                                    drawScaledFillText(tCtx, c.text, c.x + dx * swA, y + dy * swA);
+                                    tCtx.restore();
+                                }
+                                tCtx.restore();
+                                // 字形：按 baseW 单独裁剪（字形本身用同一遮罩）
                                 tCtx.save(); tCtx.beginPath();
-                                tCtx.rect(c.x - fs, y - fs * 2.5, (fs - pInfo.pad) + (pInfo.pct / 100) * pInfo.total, fs * 4);
+                                tCtx.rect(left, top, baseW, height);
                                 tCtx.clip();
-                                drawShadowStrokeText(tCtx, c.text, c.x, y, gStrokeA, sw, 0.5);
-                                tCtx.fillStyle = gColorA; tCtx.fillText(c.text, c.x, y);
+                                tCtx.fillStyle = gColorA; drawScaledFillText(tCtx, c.text, c.x, y);
                                 tCtx.restore();
                             }
                         }
@@ -577,6 +679,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
 
                         const processRuby2Block = (chars, charWidths, r2xCursor, chInfo) => {
                             if (layerPass === 'B') {
+                                // 先描边（叠叠乐在字形后面），后画字形
                                 let cxStrokeB = r2xCursor;
                                 for (let i = 0; i < chars.length; i++) {
                                     drawShadowStrokeText(tCtx, chars[i], cxStrokeB, r2y, r2gStrokeB, r2lw);
@@ -584,24 +687,40 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 }
                                 let cxFillB = r2xCursor;
                                 for (let i = 0; i < chars.length; i++) {
-                                    tCtx.fillStyle = r2gColorB; tCtx.fillText(chars[i], cxFillB, r2y);
+                                    tCtx.fillStyle = r2gColorB; drawScaledFillText(tCtx, chars[i], cxFillB, r2y);
                                     cxFillB += charWidths[i] + r2ls;
                                 }
                             } else {
                                 if (chInfo.pct > 0) {
-                                    tCtx.save(); tCtx.beginPath();
-                                    // 与 HEAD~3 / 主字 / 注音1 一致的等宽矩形 clip，
-                                    // 基于 calcProgress 的 ink-aware pct（可负值/超100），不钳制走字边界
-                                    tCtx.rect(r2xCursor - r2fs, r2y - r2fs * 2.5, (r2fs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, r2fs * 4);
-                                    tCtx.clip();
+                                    const baseW = (r2fs * charScaleX - chInfo.pad) + (chInfo.pct / 100) * chInfo.total;
+                                    const left = r2xCursor - r2fs * charScaleX, top = r2y - r2fs * 2.5, height = r2fs * 4;
+                                    const curtainX = left + baseW;
+                                    // 先走字后描边：每字描边 = 文字按正方形排布的各方向偏移副本，
+                                    // 每份副本的裁剪进度都等于走字进度加上自己的偏移，不统一硬切。
+                                    tCtx.save();
+                                    tCtx.fillStyle = r2gStrokeA;
+                                    const r2wA = r2lw + 0.5;
                                     let cxStrokeA = r2xCursor;
                                     for (let i = 0; i < chars.length; i++) {
-                                        drawShadowStrokeText(tCtx, chars[i], cxStrokeA, r2y, r2gStrokeA, r2lw, 0.5);
+                                        for (const [dx, dy] of STROKE_DIRS_32) {
+                                            const w = (curtainX + dx * r2wA) - left;
+                                            if (w <= 0) continue;
+                                            tCtx.save(); tCtx.beginPath();
+                                            tCtx.rect(left, top, w, height);
+                                            tCtx.clip();
+                                            drawScaledFillText(tCtx, chars[i], cxStrokeA + dx * r2wA, r2y + dy * r2wA);
+                                            tCtx.restore();
+                                        }
                                         cxStrokeA += charWidths[i] + r2ls;
                                     }
+                                    tCtx.restore();
+                                    // 字形：按 baseW 单独裁剪
+                                    tCtx.save(); tCtx.beginPath();
+                                    tCtx.rect(left, top, baseW, height);
+                                    tCtx.clip();
                                     let cxFillA = r2xCursor;
                                     for (let i = 0; i < chars.length; i++) {
-                                        tCtx.fillStyle = r2gColorA; tCtx.fillText(chars[i], cxFillA, r2y);
+                                        tCtx.fillStyle = r2gColorA; drawScaledFillText(tCtx, chars[i], cxFillA, r2y);
                                         cxFillA += charWidths[i] + r2ls;
                                     }
                                     tCtx.restore();
@@ -621,7 +740,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 const charWidths = [];
                                 for (const ch of chars) {
                                 // 必须测量单字符才能让分离渲染的光标准确步进
-                                    const cw = measureTotalWidth(ch, r2fs, ff, 0, r2fwStr);
+                                    const cw = measureTotalWidth(ch, r2fs, ff, 0, r2fwStr) * charScaleX;
                                     charWidths.push(cw);
                                     blockW += cw + r2ls;
                                 }
@@ -645,7 +764,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                         // 【对齐修正】整段非切分时，完全对称 Ruby 1 的逐字遍历写法（同时带入 4 Pass 防遮挡）
                             const r2CharsArr = [...item.ruby2];
                             const r2fwStr2 = config.ruby2Bold ? 'bold' : 'normal';
-                            const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2));
+                            const r2CharWidths = r2CharsArr.map(ch => measureTotalWidth(ch, r2fs, ff, 0, r2fwStr2) * charScaleX);
                             const r2TotalW = r2CharWidths.reduce((s, w) => s + w, 0) + (r2CharsArr.length > 0 ? r2CharsArr.length - 1 : 0) * r2ls;
                             let r2xCursor = groupCenterX - r2TotalW / 2;
                             // 整段 calcProgress（ink-aware pct，支持负值/超100）
@@ -658,7 +777,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
             }
         };
 
-        //先画 B 再画 A
+        // 指示灯保持原始坐标与尺寸；字宽只在各文字副本内部生效。
         drawIndicator(dcx, line, x, y - mainBaseline);
         renderPassLayer('B', dcx);
         renderPassLayer('A', dcx);

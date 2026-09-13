@@ -46,19 +46,63 @@ function measureTotalWidth(text, fontSize, fontFamily, letterSpacing, fontWeight
     }
 }
 
-// DOM text-shadow 32向描边生成
+// DOM text-shadow 描边生成
 const strokeCache = {};
-function genStroke(color, width) {
+// 斜角/方块叠叠乐风格：沿正方形每条边取 perEdge 个点（含两端角点），
+// 去掉共享角点后得到均匀方正的正方形轮廓
+function _squareDirPoints(perEdge) {
+    const pts = [];
+    const seen = new Set();
+    const add = (x, y) => {
+        const k = `${x.toFixed(4)},${y.toFixed(4)}`;
+        if (seen.has(k)) return;
+        seen.add(k);
+        pts.push([x, y]);
+    };
+    // 每条边: (起点) -> (终点)
+    const corners = [
+        [[-1, -1], [1, -1]],   // 顶边
+        [[1, -1], [1, 1]],     // 右边
+        [[1, 1], [-1, 1]],     // 底边
+        [[-1, 1], [-1, -1]],   // 左边
+    ];
+    for (let e = 0; e < 4; e++) {
+        const [a, b] = corners[e];
+        for (let i = 0; i < perEdge; i++) {
+            const c = i / (perEdge - 1);
+            add(a[0] + (b[0] - a[0]) * c, a[1] + (b[1] - a[1]) * c);
+        }
+    }
+    return pts;
+}
+const STROKE_DIRS = _squareDirPoints(9);  // 每条边9点，去重角点 = 32 向
+const solidStrokeOffsetCache = {};
+function _solidSquareOffsets(width) {
+    const radius = Math.max(0, Number(width) || 0);
+    const key = radius.toFixed(3);
+    if (solidStrokeOffsetCache[key]) return solidStrokeOffsetCache[key];
+    const axis = [-radius];
+    for (let v = Math.ceil(-radius); v <= Math.floor(radius); v++) {
+        if (v > -radius && v < radius) axis.push(v);
+    }
+    if (radius > 0) axis.push(radius);
+    const points = [];
+    for (const y of axis) {
+        for (const x of axis) {
+            if (x !== 0 || y !== 0) points.push([x, y]);
+        }
+    }
+    solidStrokeOffsetCache[key] = points;
+    return points;
+}
+function genStroke(color, width, scaleX = 1) {
     if (width <= 0 || !color) return 'none';
-    const key = `${color}_${width}`;
+    const sx = Number.isFinite(Number(scaleX)) && Number(scaleX) > 0 ? Number(scaleX) : 1;
+    const key = `${color}_${width}_${sx}`;
     if (strokeCache[key]) return strokeCache[key];
     const parts = [];
-    const steps = 32;
-    for (let r = 1; r <= width; r += 0.5) {
-        for (let t = 0; t < 360; t += 360 / steps) {
-            const rad = t * Math.PI / 180;
-            parts.push(`${(r * Math.cos(rad)).toFixed(2)}px ${(r * Math.sin(rad)).toFixed(2)}px 0px ${color}`);
-        }
+    for (const [x, y] of _solidSquareOffsets(width)) {
+        parts.push(`${(x / sx).toFixed(2)}px ${y.toFixed(2)}px 0px ${color}`);
     }
     return (strokeCache[key] = parts.join(','));
 }
@@ -83,6 +127,8 @@ function computeRubyLayout(groups, config) {
     const fw = config.fontBold ? 'bold' : 'normal';
     const rfw = config.rubyBold ? 'bold' : 'normal';
     const r2fw = config.ruby2Bold ? 'bold' : 'normal';
+    const sxRaw = Number(config.charScaleX);
+    const sx = Number.isFinite(sxRaw) && sxRaw > 0 ? sxRaw : 1;
 
     // 辅助：测量注音字符串宽度
     const measureRubyWidth = (ruby, rubyChars, fontSize, letterSpacing, fontWeight) => {
@@ -92,7 +138,7 @@ function computeRubyLayout(groups, config) {
             for (let ri = 0; ri < rubyChars.length; ri++) {
                 const chars = [...rubyChars[ri].char];
                 for (let ci = 0; ci < chars.length; ci++) {
-                    w += measureTotalWidth(chars[ci], fontSize, ff, 0, fontWeight);
+                    w += measureTotalWidth(chars[ci], fontSize, ff, 0, fontWeight) * sx;
                     charCount++;
                 }
             }
@@ -101,7 +147,7 @@ function computeRubyLayout(groups, config) {
         } else if (ruby) {
             const chars = [...ruby];
             for (let ci = 0; ci < chars.length; ci++) {
-                w += measureTotalWidth(chars[ci], fontSize, ff, 0, fontWeight);
+                w += measureTotalWidth(chars[ci], fontSize, ff, 0, fontWeight) * sx;
             }
             w += (chars.length > 0 ? chars.length - 1 : 0) * letterSpacing;
         }
@@ -113,7 +159,7 @@ function computeRubyLayout(groups, config) {
         // 主字宽 (含字间距，但最后字后无间距)
         let baseW = 0;
         for (let ci = 0; ci < g.chars.length; ci++) {
-            const cw = measureTotalWidth(g.chars[ci].text, fs, ff, 0, fw);
+            const cw = measureTotalWidth(g.chars[ci].text, fs, ff, 0, fw) * sx;
             baseW += cw;
         }
         baseW += (g.chars.length > 0 ? g.chars.length - 1 : 0) * ls;

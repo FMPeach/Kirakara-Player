@@ -93,16 +93,48 @@ var measureTotalWidth = function(text, fontSize, fontFamily, letterSpacing, font
 };
 
 var strokeCache = {};
-var genStroke = function(color, width) {
+function _squareDirPoints(perEdge) {
+    var pts = [];
+    var seen = {};
+    function add(x, y) {
+        var k = x.toFixed(4) + ',' + y.toFixed(4);
+        if (seen[k]) return;
+        seen[k] = true;
+        pts.push([x, y]);
+    }
+    var corners = [
+        [[-1, -1], [1, -1]],
+        [[1, -1], [1, 1]],
+        [[1, 1], [-1, 1]],
+        [[-1, 1], [-1, -1]],
+    ];
+    for (var e = 0; e < 4; e++) {
+        var a = corners[e][0], b = corners[e][1];
+        for (var i = 0; i < perEdge; i++) {
+            var c = i / (perEdge - 1);
+            add(a[0] + (b[0] - a[0]) * c, a[1] + (b[1] - a[1]) * c);
+        }
+    }
+    return pts;
+}
+var genStroke = function(color, width, scaleX) {
     if (width <= 0 || !color) return 'none';
-    var key = color + '_' + width;
+    var sx = Number(scaleX);
+    if (!isFinite(sx) || sx <= 0) sx = 1;
+    var key = color + '_' + width + '_' + sx;
     if (strokeCache[key]) return strokeCache[key];
     var parts = [];
-    var steps = 32;
-    for (var r = 1; r <= width; r += 0.5) {
-        for (var t = 0; t < 360; t += 360 / steps) {
-            var rad = t * Math.PI / 180;
-            parts.push((r * Math.cos(rad)).toFixed(2) + 'px ' + (r * Math.sin(rad)).toFixed(2) + 'px 0px ' + color);
+    var radius = Math.max(0, Number(width) || 0);
+    var axis = [-radius];
+    for (var v = Math.ceil(-radius); v <= Math.floor(radius); v++) {
+        if (v > -radius && v < radius) axis.push(v);
+    }
+    if (radius > 0) axis.push(radius);
+    for (var yi = 0; yi < axis.length; yi++) {
+        for (var xi = 0; xi < axis.length; xi++) {
+            var x = axis[xi], y = axis[yi];
+            if (x === 0 && y === 0) continue;
+            parts.push((x / sx).toFixed(2) + 'px ' + y.toFixed(2) + 'px 0px ' + color);
         }
     }
     return (strokeCache[key] = parts.join(','));
