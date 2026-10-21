@@ -5,6 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kirakara Player Demo</title>
     <script>
+        const KiraFileImport = (() => {
+            const lyricExtensions = ['.krl', '.lrc', '.kra', '.txt'];
+            const mediaExtensions = [
+                '.mp4', '.m4v', '.mov', '.webm', '.mkv', '.avi', '.mpg', '.mpeg', '.m2v',
+                '.ogv', '.wmv', '.asf', '.flv', '.3gp', '.3g2', '.ts', '.mts', '.m2ts', '.vob',
+                '.mp3', '.mp2', '.wav', '.wave', '.flac', '.aac', '.m4a', '.m4b',
+                '.ogg', '.oga', '.opus', '.aif', '.aiff', '.aifc', '.wma', '.amr', '.caf', '.mka',
+            ];
+            const mimeType = file => String(file?.type || '').toLowerCase().split(';')[0].trim();
+            const isMediaType = type => type.startsWith('audio/') || type.startsWith('video/');
+            const extension = file => {
+                const name = String(file?.name || '').toLowerCase();
+                const dot = name.lastIndexOf('.');
+                return dot < 0 ? '' : name.slice(dot);
+            };
+            const classifyFile = file => {
+                if (!file) return 'unsupported';
+                if (isMediaType(mimeType(file)) || mediaExtensions.includes(extension(file))) return 'media';
+                return lyricExtensions.includes(extension(file)) ? 'lyrics' : 'unsupported';
+            };
+            const getDragPreview = transfer => {
+                if (!transfer) return null;
+                const files = Array.from(transfer.files || []);
+                const items = Array.from(transfer.items || []).filter(item => item.kind === 'file');
+                if (!files.length && !items.length && !Array.from(transfer.types || []).includes('Files')) return null;
+                const kinds = files.length ? files.map(classifyFile) : items.map(item => {
+                    const file = item.getAsFile?.();
+                    if (file) return classifyFile(file);
+                    const type = mimeType(item);
+                    if (isMediaType(type)) return 'media';
+                    // Filenames are hidden before drop; unrecognised types stay in the lyric candidate channel.
+                    if ((type.startsWith('image/') && type !== 'image/x-krita') || type === 'application/pdf'
+                            || type === 'application/zip' || type === 'application/x-7z-compressed'
+                            || type === 'application/x-rar-compressed') return 'unsupported';
+                    return 'pending';
+                });
+                if (!kinds.length) kinds.push('pending');
+                return {
+                    media: kinds.includes('media'),
+                    lyrics: kinds.includes('lyrics') || kinds.includes('pending'),
+                    unsupported: kinds.every(kind => kind === 'unsupported'),
+                };
+            };
+            const planFileImport = files => {
+                const plan = { media: null, lyrics: null, unsupported: [], duplicates: [] };
+                for (const file of Array.from(files || [])) {
+                    const kind = classifyFile(file);
+                    if (kind === 'unsupported') plan.unsupported.push(file);
+                    else if (plan[kind]) plan.duplicates.push(file);
+                    else plan[kind] = file;
+                }
+                return plan;
+            };
+            return {
+                lyricAccept: lyricExtensions.join(','),
+                mediaAccept: ['audio/*', 'video/*', ...mediaExtensions].join(','),
+                extension, classifyFile, getDragPreview, planFileImport,
+            };
+        })();
     </script>
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="favicon.ico">
@@ -415,6 +474,13 @@
             const bgImageInputRef = useRef(null);
             const mediaFileInputRef = useRef(null);
             const lrcFileInputRef = useRef(null);
+            const [fileDrag, setFileDrag] = useState(null);
+            const [importNotice, setImportNotice] = useState('');
+            useEffect(() => {
+                if (!importNotice) return;
+                const timer = setTimeout(() => setImportNotice(''), 5000);
+                return () => clearTimeout(timer);
+            }, [importNotice]);
             const [config, setConfig] = useState(() => {
                 try {
                     const s = localStorage.getItem(STORAGE_KEY);
@@ -660,6 +726,10 @@
             }, [buildKrlConfig, downloadKrl, lrcRaw, activeRoles]);
 
             const importKrl = useCallback((file) => {
+                if (KiraFileImport.classifyFile(file) !== 'lyrics' || KiraFileImport.extension(file) !== '.krl') {
+                    setImportNotice('不支持此工程文件格式');
+                    return;
+                }
                 const r = new FileReader();
                 r.onload = () => {
                     const text = r.result;
@@ -734,8 +804,25 @@
                         setLrcRaw(text || '');
                     }
                 };
+                r.onerror = () => setImportNotice('工程文件读取失败');
                 r.readAsText(file);
             }, [createRoleImageUrl]);
+
+            const importLyricsFile = useCallback((file) => {
+                if (!file) return;
+                if (KiraFileImport.classifyFile(file) !== 'lyrics') {
+                    setImportNotice('不支持此歌词文件格式');
+                    return;
+                }
+                if (KiraFileImport.extension(file) === '.krl') {
+                    importKrl(file);
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => setLrcRaw(reader.result || '');
+                reader.onerror = () => setImportNotice('歌词文件读取失败');
+                reader.readAsText(file);
+            }, [importKrl]);
 
             const audioRef = useRef(null), videoRef = useRef(null), requestRef = useRef(null);
             const pendingMediaIdRef = useRef(0);  // 媒体选择竞态防护：只认最新一次选择
@@ -908,8 +995,108 @@
                 c(); const ro = new ResizeObserver(c); if (previewOuterRef.current) ro.observe(previewOuterRef.current); return () => ro.disconnect();
             }, []);
 
+            const importMediaFile = useCallback((file) => {
+                if (!file) return;
+                if (KiraFileImport.classifyFile(file) !== 'media') {
+                    setImportNotice('不支持此媒体文件格式');
+                    return;
+                }
+                // 切换前：先彻底停止旧媒体，避免残留状态导致播放器宕机
+                const a = audioRef.current, v = videoRef.current;
+                if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
+                if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+                preludeClockRef.current.playing=false; setIsPlaying(false); setTime(timelineMin);
+                // 清理旧 blob URL 防止内存泄漏
+                if (oldUrlsRef.current.audio && oldUrlsRef.current.audio.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.audio);
+                if (oldUrlsRef.current.video && oldUrlsRef.current.video.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.video);
+                const url=URL.createObjectURL(file);
+                // 仍然检测实际视频轨，不按文件名或 MIME 决定播放模式。
+                const myId = ++pendingMediaIdRef.current;
+                detectVideoTrack(file).then(hasVideo => {
+                    if (pendingMediaIdRef.current !== myId) { URL.revokeObjectURL(url); return; }
+                    if (hasVideo) { setVideoUrl(url); setAudioUrl(url); setBgImageEnabled(false); oldUrlsRef.current={audio:url,video:url}; }
+                    else { setVideoUrl(null); setAudioUrl(url); oldUrlsRef.current={audio:url,video:null}; }
+                });
+                // 拖入的文件也显示在原有媒体选择框中。
+                if (mediaFileInputRef.current && mediaFileInputRef.current.files[0] !== file) {
+                    const transfer = new DataTransfer();
+                    transfer.items.add(file);
+                    mediaFileInputRef.current.files = transfer.files;
+                }
+            }, [timelineMin]);
+
+            useEffect(() => {
+                let depth = 0;
+                const clearDrag = () => { depth = 0; setFileDrag(null); };
+                const showDrag = (event, entering) => {
+                    const preview = KiraFileImport.getDragPreview(event.dataTransfer);
+                    if (!preview) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (entering) depth++;
+                    if (entering && depth === 1) setImportNotice('');
+                    event.dataTransfer.dropEffect = exporting || preview.unsupported ? 'none' : 'copy';
+                    setFileDrag(prev => prev && Object.keys(preview).every(key => prev[key] === preview[key]) ? prev : preview);
+                };
+                const onEnter = event => showDrag(event, true);
+                const onOver = event => showDrag(event, false);
+                const onLeave = event => {
+                    if (!depth && !KiraFileImport.getDragPreview(event.dataTransfer)) return;
+                    depth = Math.max(0, depth - 1);
+                    if (!depth || (!event.relatedTarget && (event.clientX <= 0 || event.clientY <= 0
+                            || event.clientX >= window.innerWidth || event.clientY >= window.innerHeight))) clearDrag();
+                };
+                const onDrop = event => {
+                    if (!KiraFileImport.getDragPreview(event.dataTransfer)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    clearDrag();
+                    if (exporting) { setImportNotice('正在导出，暂不可导入文件'); return; }
+                    const plan = KiraFileImport.planFileImport(event.dataTransfer.files);
+                    setImportNotice('');
+                    if (plan.media) importMediaFile(plan.media);
+                    if (plan.lyrics) importLyricsFile(plan.lyrics);
+                    const messages = [];
+                    if (plan.unsupported.length) messages.push(`已忽略 ${plan.unsupported.length} 个不支持的文件`);
+                    if (plan.duplicates.length) messages.push('每次最多导入一个媒体文件和一个歌词文件，已忽略多余文件');
+                    if (!plan.media && !plan.lyrics && !messages.length) messages.push('不支持此文件');
+                    if (messages.length) setImportNotice(messages.join('；'));
+                };
+                const onKey = event => { if (event.key === 'Escape') clearDrag(); };
+                document.addEventListener('dragenter', onEnter, true);
+                document.addEventListener('dragover', onOver, true);
+                document.addEventListener('dragleave', onLeave, true);
+                document.addEventListener('drop', onDrop, true);
+                document.addEventListener('dragend', clearDrag, true);
+                document.addEventListener('keydown', onKey);
+                window.addEventListener('blur', clearDrag);
+                return () => {
+                    document.removeEventListener('dragenter', onEnter, true);
+                    document.removeEventListener('dragover', onOver, true);
+                    document.removeEventListener('dragleave', onLeave, true);
+                    document.removeEventListener('drop', onDrop, true);
+                    document.removeEventListener('dragend', clearDrag, true);
+                    document.removeEventListener('keydown', onKey);
+                    window.removeEventListener('blur', clearDrag);
+                };
+            }, [exporting, importMediaFile, importLyricsFile]);
+
             return (
                 <div>
+                    {fileDrag && <div className={`file-drop-overlay${fileDrag.unsupported || exporting ? ' is-unsupported' : ''}`} role="status" aria-live="polite">
+                        <div className="file-drop-content">
+                            <Icons.FolderOpen className="file-drop-icon"/>
+                            <h2>{exporting ? '正在导出，暂不可导入' : fileDrag.unsupported ? '不支持此文件' : '导入文件'}</h2>
+                            <div className="file-drop-channels">
+                                <span className={`file-drop-channel${!exporting && fileDrag.media ? ' can-import' : ''}`}><Icons.Music/>媒体资源</span>
+                                <span className={`file-drop-channel${!exporting && fileDrag.lyrics ? ' can-import' : ''}`}><Icons.Type/>歌词文件</span>
+                            </div>
+                        </div>
+                    </div>}
+                    {importNotice && <div className="import-notice" role="status" aria-live="polite">
+                        <span>{importNotice}</span>
+                        <button type="button" aria-label="关闭提示" title="关闭提示" onClick={()=>setImportNotice('')}>&times;</button>
+                    </div>}
                     <div className="app-shell flex h-screen bg-zinc-950 text-white overflow-hidden font-sans text-sm">
                         <div className="app-sidebar w-80 bg-zinc-900 border-r border-zinc-800 p-6 flex flex-col gap-6 shadow-2xl z-20 overflow-y-auto custom-scrollbar flex-shrink-0">
                             <div className="app-header flex items-center gap-2 border-b border-zinc-800 pb-4">
@@ -924,25 +1111,8 @@
                                         <Icons.Music className="w-3 h-3"/> 媒体资源
                                     </label>
                                     <div className="flex gap-2">
-                                        <input ref={mediaFileInputRef} type="file" accept="audio/*,video/*" className="flex-1 bg-zinc-800 p-1.5 rounded border border-zinc-700 text-[10px] file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-zinc-700 file:text-zinc-300"
-                                            onChange={(e) => { const f=e.target.files[0]; if(!f)return;
-                                                // 切换前：先彻底停止旧媒体，避免残留状态导致播放器宕机
-                                                const a = audioRef.current, v = videoRef.current;
-                                                if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
-                                                if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
-                                                preludeClockRef.current.playing=false; setIsPlaying(false); setTime(timelineMin);
-                                                // 清理旧 blob URL 防止内存泄漏
-                                                if (oldUrlsRef.current.audio && oldUrlsRef.current.audio.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.audio);
-                                                if (oldUrlsRef.current.video && oldUrlsRef.current.video.startsWith('blob:')) URL.revokeObjectURL(oldUrlsRef.current.video);
-                                                const url=URL.createObjectURL(f);
-                                                // 有视频轨才进视频模式；MP4 等容器可能只有音频轨（不能按 MIME 判断）
-                                                const myId = ++pendingMediaIdRef.current;
-                                                detectVideoTrack(f).then(hasVideo => {
-                                                    if (pendingMediaIdRef.current !== myId) return; // 已被更新的选择覆盖
-                                                    if (hasVideo) { setVideoUrl(url); setAudioUrl(url); setBgImageEnabled(false); oldUrlsRef.current={audio:url,video:url}; }
-                                                    else { setVideoUrl(null); setAudioUrl(url); oldUrlsRef.current={audio:url,video:null}; }
-                                                });
-                                            }} />
+                                        <input ref={mediaFileInputRef} type="file" accept={KiraFileImport.mediaAccept} aria-label="媒体文件" className="flex-1 min-w-0 bg-zinc-800 p-1.5 rounded border border-zinc-700 text-[10px] file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-zinc-700 file:text-zinc-300"
+                                            onChange={e=>importMediaFile(e.target.files[0])} />
                                         <button className="text-[10px] text-red-400 hover:text-red-300 px-1" onClick={()=>{
                                             pendingMediaIdRef.current++;  // 作废尚未完成的视频轨检测
                                             if (mediaFileInputRef.current) mediaFileInputRef.current.value='';  // 清空选择框
@@ -956,12 +1126,9 @@
                                             setAudioUrl(null);setVideoUrl(null);
                                         }}>✕</button>
                                     </div>
-                                    <textarea className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="KRL 或 @Ruby / 春日向け 格式...&#13;&#10;歌词内使用【@角色】以解析角色..."
-                                        onDragOver={e=>{e.preventDefault();e.stopPropagation();}}
-                                        onDrop={e=>{e.preventDefault();e.stopPropagation();const f=e.dataTransfer.files[0];if(!f)return;if(f.name.endsWith('.krl')){importKrl(f);}else{const r=new FileReader();r.onload=()=>setLrcRaw(r.result||'');r.readAsText(f);}}}
-                                    />
+                                    <textarea aria-label="歌词内容" className="w-full h-36 bg-black p-2 font-mono text-[10px] rounded border border-zinc-700 focus:border-indigo-500 outline-none resize-none" value={lrcRaw} onChange={e=>setLrcRaw(e.target.value)} placeholder="KRL 或 @Ruby / 春日向け 格式...&#13;&#10;歌词内使用【@角色】以解析角色..."/>
                                     <div className="flex items-center gap-2">
-                                        <input ref={lrcFileInputRef} type="file" accept=".lrc,.txt,.krl" className="hidden" onChange={e=>{const f=e.target.files[0];if(!f)return;e.target.value='';if(f.name.endsWith('.krl')){importKrl(f);}else{const r=new FileReader();r.onload=()=>setLrcRaw(r.result||'');r.readAsText(f);}}}/>
+                                        <input ref={lrcFileInputRef} type="file" accept={KiraFileImport.lyricAccept} aria-label="歌词文件" className="hidden" onChange={e=>{const f=e.target.files[0];e.target.value='';importLyricsFile(f);}}/>
                                         <button className="text-[10px] text-indigo-400 hover:text-indigo-300 border border-zinc-700 rounded px-2 py-0.5" onClick={()=>lrcFileInputRef.current?.click()}>📄 导入歌词</button>
                                         {lrcRaw && <button className="text-[10px] text-zinc-500 hover:text-red-400" onClick={()=>setLrcRaw('')}>清空</button>}
                                     </div>
@@ -1210,7 +1377,7 @@
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.FolderOpen className="w-3 h-3"/> 项目管理</label>
                                     <div className="grid grid-cols-2 gap-2">
-                                        <input ref={krlImportRef} type="file" accept=".krl" className="hidden" onChange={e=>{const f=e.target.files[0];if(f){importKrl(f);e.target.value='';}}}/>
+                                        <input ref={krlImportRef} type="file" accept=".krl" aria-label="工程文件" className="hidden" onChange={e=>{const f=e.target.files[0];if(f){importKrl(f);e.target.value='';}}}/>
                                         <button className="flex items-center justify-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 border border-zinc-700 rounded px-2 py-1.5" onClick={()=>krlImportRef.current?.click()}><Icons.FolderOpen className="w-3 h-3"/>导入</button>
                                         <div className="relative" onMouseEnter={()=>{clearTimeout(exportLeaveRef.current);setExportMenuOpen(true);}} onMouseLeave={()=>{exportLeaveRef.current=setTimeout(()=>setExportMenuOpen(false),200);}}>
                                             <button className="w-full flex items-center justify-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 border border-zinc-700 rounded px-2 py-1.5" onClick={exportAsProject}><Icons.Save className="w-3 h-3"/>导出为工程</button>

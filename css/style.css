@@ -14,6 +14,70 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: pointer; margin-top: -6px; 
 }
 
+/* Page-wide file import feedback. Never change the element under the drag cursor. */
+.file-drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100010;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(76,29,149,0.45);
+    color: #ddd6fe;
+    font-family: sans-serif;
+    pointer-events: none;
+}
+.file-drop-content { width: min(100%, 360px); text-align: center; }
+.file-drop-icon { width: 40px; height: 40px; margin: 0 auto 16px; color: #a78bfa; }
+.file-drop-content h2 { margin: 0 0 20px; font-size: 20px; line-height: 1.4; font-weight: 600; }
+.file-drop-channels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.file-drop-channel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    color: rgba(161,161,170,0.55);
+    font-size: 14px;
+}
+.file-drop-channel svg { width: 18px; height: 18px; flex-shrink: 0; }
+.file-drop-channel.can-import { color: #c4b5fd; }
+.file-drop-channel.can-import svg { color: #a78bfa; }
+.file-drop-overlay.is-unsupported { background: rgba(82,82,91,0.6); color: #d4d4d8; }
+.file-drop-overlay.is-unsupported .file-drop-icon { color: #a1a1aa; }
+.import-notice {
+    position: fixed;
+    top: 64px;
+    right: 16px;
+    z-index: 100009;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    box-sizing: border-box;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border: 1px solid #52525b;
+    border-radius: 6px;
+    background: #27272a;
+    color: #d4d4d8;
+    font: 12px/1.6 sans-serif;
+}
+.import-notice span { overflow-wrap: anywhere; }
+.import-notice button {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #a1a1aa;
+    font-size: 20px;
+    line-height: 20px;
+    cursor: pointer;
+}
+.import-notice button:hover { color: #fff; }
+
 /* === 导出浮层 === */
 .export-overlay {
     position: fixed; bottom: 24px; right: 24px;
