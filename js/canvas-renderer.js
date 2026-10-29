@@ -447,7 +447,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                 drawShadowStrokeText(tCtx, ch, rxCursor, ry, rgStrokeB, rlw);
                                 tCtx.fillStyle = rgColorB; tCtx.fillText(ch, rxCursor, ry);
                             } else {
-                                if (chInfo.pct > 0) {
+                                if (chInfo.pct > chInfo.startFrac) {
                                     tCtx.save(); tCtx.beginPath();
                                     tCtx.rect(rxCursor - rfs, ry - rfs * 2.5, (rfs - chInfo.pad) + (chInfo.pct / 100) * chInfo.total, rfs * 4);
                                     tCtx.clip();
@@ -534,7 +534,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                             drawShadowStrokeText(tCtx, c.text, c.x, y, gStrokeB, sw);
                             tCtx.fillStyle = gColorB; tCtx.fillText(c.text, c.x, y);
                         } else {
-                            if (pInfo.pct > 0) {
+                            if (pInfo.pct > pInfo.startFrac) {
                                 const gStrokeA = buildRoleGradient(tCtx, textTop, textTop + boxHeight, rRoleColors, 'strokeAfter', seamFadePx);
                                 const gColorA  = buildRoleGradient(tCtx, textTop, textTop + boxHeight, rRoleColors, 'colorAfter', seamFadePx);
                                 tCtx.save(); tCtx.beginPath();
@@ -588,7 +588,7 @@ function drawLyricsOnCanvas(ctx, lyrics, time, config, entryBuf) {
                                     cxFillB += charWidths[i] + r2ls;
                                 }
                             } else {
-                                if (chInfo.pct > 0) {
+                                if (chInfo.pct > chInfo.startFrac) {
                                     tCtx.save(); tCtx.beginPath();
                                     // 与 HEAD~3 / 主字 / 注音1 一致的等宽矩形 clip，
                                     // 基于 calcProgress 的 ink-aware pct（可负值/超100），不钳制走字边界
