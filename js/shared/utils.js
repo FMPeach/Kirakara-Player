@@ -84,7 +84,7 @@ var measureTotalWidth = function(text, fontSize, fontFamily, letterSpacing, font
         span.style.fontWeight = fontWeight || 'normal';
         span.style.whiteSpace = 'pre';
         document.body.appendChild(span);
-        var w = span.scrollWidth;
+        var w = span.getBoundingClientRect().width;
         document.body.removeChild(span);
         return (glyphCache[key] = w);
     } catch (e) {
