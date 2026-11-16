@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -80,6 +80,7 @@
     <!-- ===== 底层共享模块 ===== -->
     <script src="js/shared/title.js"></script>
     <script src="js/shared/config.js"></script>
+    <script src="js/shared/fonts.js"></script>
     <script src="js/shared/measure.js"></script>
     <script src="js/shared/progress.js"></script>
 
@@ -125,25 +126,281 @@
             Trash: (p) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg>),
         };
 
-        const FONT_OPTIONS = Object.freeze([
-            ["'Microsoft YaHei', sans-serif", '微软雅黑'],
-            ["'SimHei', sans-serif", '黑体'],
-            ["'Kaiti', serif", '楷体'],
-            ["'Noto Sans JP', sans-serif", 'Noto Sans JP'],
-            ["'Noto Serif JP', serif", 'Noto Serif JP'],
-            ["'Yu Gothic Medium', sans-serif", '游ゴシック'],
-            ["'Yu Mincho Medium', serif", '游明朝'],
-            ["'MotoyaLMaru W3 Mono', monospace", 'モトヤL丸 W3 Mono'],
-            ["'UD Digi Kyokasho NP-R', sans-serif", 'UD Digital 教科书体'],
-            ["'寒蝉全圆体', sans-serif", '寒蝉全圆体'],
-            ["'小濑字体P JP', sans-serif", '小濑字体'],
-            ["'RiiPopkaku', sans-serif", 'りいポップ角'],
-            ['system-ui', '系统默认'],
-        ]);
+        // ==================== 字体选择器 ====================
+        // 点击 ▼ 打开固定定位弹层：上方搜索框，下方用字体本身渲染字体名（经典字体选单）。
+        // 本机字体来自 Local Font Access API（js/shared/fonts.js），不可用时回退预置列表。
 
-        const FontOptions = () => FONT_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-        ));
+        // 弹层与字体输入框同宽同左，平时从输入框下方向下展开；
+        // 下方空间不够时整块往上顶（向上展开），绝不滚动页面。
+        function computeFontMenuStyle(anchor, column) {
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const field = column || anchor;
+            const gap = 6;
+            const margin = 8;
+            const maxH = 430;
+            const width = Math.min(Math.max(field.width, 240), 420, vw - 16);
+            const left = Math.max(margin, Math.min(field.left, vw - width - margin));
+            const spaceBelow = vh - anchor.bottom - gap - margin;
+            const spaceAbove = anchor.top - gap - margin;
+            const style = { left: Math.round(left), width: Math.round(width) };
+            if (spaceBelow >= 320 || (spaceBelow >= 200 && spaceBelow >= spaceAbove)) {
+                style.top = Math.round(anchor.bottom + gap);
+                style.maxHeight = Math.round(Math.min(maxH, spaceBelow));
+            } else {
+                style.bottom = Math.round(vh - anchor.top + gap);
+                style.maxHeight = Math.round(Math.min(maxH, Math.max(180, spaceAbove)));
+            }
+            return style;
+        }
+
+        const FontMenu = ({ fieldRef, triggerRef, value, bold, onApply, onClose }) => {
+            const [query, setQuery] = useState('');
+            const [fontsState, setFontsState] = useState(() => KiraFonts.getSnapshot());
+            const [activeIndex, setActiveIndex] = useState(0);
+            const [weightRows, setWeightRows] = useState(null);
+            const [geom, setGeom] = useState(() => {
+                const trigger = triggerRef.current;
+                const field = fieldRef.current;
+                if (!trigger) return null;
+                return { anchor: trigger.getBoundingClientRect(), column: field ? field.getBoundingClientRect() : null };
+            });
+            const menuRef = useRef(null);
+            const listRef = useRef(null);
+            const aliveRef = useRef(true);
+            const closeRef = useRef(onClose);
+            const keyboardNavRef = useRef(false);
+            const scrollBlockRef = useRef('nearest');
+            const applyingRef = useRef(false);
+            const prevQueryRef = useRef(query);
+            closeRef.current = onClose;
+
+            useEffect(() => {
+                aliveRef.current = true;
+                setFontsState(KiraFonts.getSnapshot());
+                KiraFonts.load().then(next => { if (aliveRef.current) setFontsState(next); });
+                return () => { aliveRef.current = false; };
+            }, []);
+
+            const { groups, rows } = useMemo(() => KiraFonts.buildGroups(fontsState, query), [fontsState, query]);
+            const menuStyle = useMemo(() => (geom ? computeFontMenuStyle(geom.anchor, geom.column) : null), [geom]);
+
+            // 打开时定位到当前字体（并滚动过去），之后输入搜索词才回到第一条
+            useEffect(() => {
+                if (!rows.length) { setActiveIndex(0); return; }
+                const found = rows.findIndex(row => KiraFonts.matchesValue(row, value));
+                keyboardNavRef.current = true;
+                scrollBlockRef.current = 'center';
+                setActiveIndex(found >= 0 ? found : 0);
+            }, [fontsState, value]);
+            useEffect(() => {
+                if (prevQueryRef.current === query) return;
+                prevQueryRef.current = query;
+                keyboardNavRef.current = false;
+                setActiveIndex(0);
+            }, [query]);
+
+            // 仅键盘导航 / 首次定位时自动滚动，避免鼠标悬停引起列表抖动
+            useEffect(() => {
+                if (!keyboardNavRef.current || !listRef.current) return;
+                const el = listRef.current.querySelector('.font-menu-item.is-active');
+                if (el) el.scrollIntoView({ block: scrollBlockRef.current || 'nearest' });
+            }, [activeIndex, rows]);
+
+            useEffect(() => {
+                const close = () => closeRef.current();
+                const handlePointerDown = (event) => {
+                    const menu = menuRef.current;
+                    if (menu && menu.contains(event.target)) return;
+                    if (triggerRef.current && triggerRef.current.contains(event.target)) return;
+                    close();
+                };
+                // 跟随字体框：容器滚动 / 窗口尺寸变化时重新贴合，离开视口才关闭
+                const reposition = () => {
+                    const trigger = triggerRef.current;
+                    const field = fieldRef.current;
+                    if (!trigger) { close(); return; }
+                    const anchor = trigger.getBoundingClientRect();
+                    if (anchor.bottom < 0 || anchor.top > window.innerHeight) { close(); return; }
+                    setGeom({ anchor, column: field ? field.getBoundingClientRect() : null });
+                };
+                document.addEventListener('pointerdown', handlePointerDown, true);
+                window.addEventListener('scroll', reposition, true);
+                window.addEventListener('resize', reposition);
+                return () => {
+                    document.removeEventListener('pointerdown', handlePointerDown, true);
+                    window.removeEventListener('scroll', reposition, true);
+                    window.removeEventListener('resize', reposition);
+                };
+            }, [triggerRef, fieldRef]);
+
+            // 套用：可能要读字体文件的 name 表拿通用名，所以是异步的（有缓存，之后瞬时）
+            // option.bold 有值时同步改「字体加粗」开关（Bold → 勾上，Regular → 取消）
+            const applyRow = async (row, option) => {
+                if (!row || applyingRef.current) return;
+                applyingRef.current = true;
+                try {
+                    const next = await KiraFonts.resolveValue(row, option);
+                    if (aliveRef.current && next) onApply(next, option ? !!option.bold : undefined);
+                } finally {
+                    applyingRef.current = false;
+                }
+            };
+
+            // 字重子选项：点一下多字重的行（或「多字重」按钮）就展开，再往里选
+            const toggleWeights = (row) => {
+                setWeightRows(prev => {
+                    if (prev && prev.family === row.family) return null;
+                    return { family: row.family, status: 'loading', options: [] };
+                });
+            };
+
+            // 行的主点击：多字重的直接展开，其余直接套用
+            const pickRow = (row) => {
+                if (KiraFonts.hasWeightCandidates(row)) toggleWeights(row);
+                else applyRow(row);
+            };
+
+            useEffect(() => {
+                if (!weightRows || weightRows.status !== 'loading') return;
+                const row = rows.find(item => item.family === weightRows.family);
+                if (!row) { setWeightRows(null); return; }
+                let alive = true;
+                KiraFonts.weightOptions(row).then(options => {
+                    if (!alive) return;
+                    setWeightRows(prev => (prev && prev.family === weightRows.family
+                        ? { ...prev, status: 'ready', options } : prev));
+                });
+                return () => { alive = false; };
+            }, [weightRows && weightRows.family, weightRows && weightRows.status, rows]);
+
+            const handleKeyDown = (event) => {
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    keyboardNavRef.current = true;
+                    scrollBlockRef.current = 'nearest';
+                    const delta = event.key === 'ArrowDown' ? 1 : -1;
+                    setActiveIndex(index => (rows.length ? (index + delta + rows.length) % rows.length : 0));
+                } else if (event.key === 'Enter') {
+                    event.preventDefault();
+                    pickRow(rows[activeIndex]);
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeRef.current();
+                }
+            };
+
+            const retry = () => {
+                setFontsState({ status: 'loading', families: [], message: '' });
+                KiraFonts.load({ force: true }).then(next => { if (aliveRef.current) setFontsState(next); });
+            };
+
+            const loading = fontsState.status === 'loading';
+            const failed = fontsState.status === 'denied' || fontsState.status === 'unsupported' || fontsState.status === 'error';
+            const statusText = loading ? '正在读取本机字体…'
+                : fontsState.status === 'ready'
+                    ? `共 ${fontsState.families.length} 个字体族 · ↑↓ 选择 · Enter 展开/套用`
+                    : fontsState.message || '';
+
+            if (!menuStyle) return null;
+
+            return ReactDOM.createPortal(
+                <div className="font-menu" ref={menuRef} style={menuStyle} role="dialog" aria-label="选择字体">
+                    <div className="font-menu-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+                        <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={handleKeyDown}
+                            spellCheck={false} aria-label="搜索字体"
+                            placeholder={fontsState.status === 'ready' ? '搜索本机字体…' : '搜索字体…'} />
+                        {query && <button type="button" className="font-menu-clear" onClick={() => setQuery('')} aria-label="清空搜索">✕</button>}
+                    </div>
+                    <div className="font-menu-list" ref={listRef} role="listbox" aria-label="字体列表">
+                        {groups.map(group => (
+                            <div key={group.key} className="font-menu-group">
+                                <div className="font-menu-group-title">{group.label}<span>{group.count}</span></div>
+                                {group.items.map(row => {
+                                    const active = row.index === activeIndex;
+                                    const current = KiraFonts.matchesValue(row, value);
+                                    const expandable = KiraFonts.hasWeightCandidates(row);
+                                    const expanded = !!(weightRows && weightRows.family === row.family);
+                                    return (
+                                        <React.Fragment key={row.key}>
+                                            <div role="option" aria-selected={current} tabIndex={-1}
+                                                title={row.name + (row.name !== row.family ? ' / ' + row.family : '')}
+                                                className={'font-menu-item' + (active ? ' is-active' : '') + (current ? ' is-current' : '') + (expanded ? ' is-expanded' : '')}
+                                                onMouseEnter={() => { keyboardNavRef.current = false; setActiveIndex(row.index); }}
+                                                onClick={() => pickRow(row)}>
+                                                <span className="font-menu-item-name" style={{ fontFamily: row.preview }}>{row.name}</span>
+                                                {expandable && (
+                                                    <button type="button" tabIndex={-1}
+                                                        className={'font-menu-weight-toggle' + (expanded ? ' is-open' : '')}
+                                                        title="展开字重"
+                                                        onMouseDown={e => e.stopPropagation()}
+                                                        onClick={e => { e.stopPropagation(); toggleWeights(row); }}>多字重<span className="font-menu-caret">▼</span></button>
+                                                )}
+                                            </div>
+                                            {expanded && (
+                                                <div className="font-menu-weights">
+                                                    {weightRows.status === 'loading' && <div className="font-menu-weight-note">正在检测可用字重…</div>}
+                                                    {weightRows.status === 'ready' && weightRows.options.map(option => {
+                                                        const isCurrent = option.value === value
+                                                            && (option.kind === 'suffix' || option.bold === !!bold);
+                                                        return (
+                                                            <button key={option.kind + ':' + (option.suffix || option.label)} type="button"
+                                                                className={'font-menu-weight-item' + (isCurrent ? ' is-current' : '')}
+                                                                onClick={e => { e.stopPropagation(); applyRow(row, option); }}>
+                                                                <span className="font-menu-weight-name"
+                                                                    style={{ fontFamily: option.value, fontWeight: option.kind === 'bold' ? 'bold' : undefined }}>{option.label}</span>
+                                                                <span className="font-menu-weight-meta">{option.kind === 'bold' ? '加粗' : option.weight || ''}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                        {!groups.length && <div className="font-menu-empty">{loading ? '读取中…' : '没有匹配的字体'}</div>}
+                    </div>
+                    <div className={'font-menu-status' + (failed ? ' is-warn' : '') + (loading ? ' is-busy' : '')}>
+                        <span>{statusText}</span>
+                        {failed && <button type="button" className="font-menu-retry" onClick={retry}>重试</button>}
+                    </div>
+                </div>,
+                document.body
+            );
+        };
+
+        const FontPicker = ({ value, bold, onChange, compact }) => {
+            const [open, setOpen] = useState(false);
+            const triggerRef = useRef(null);
+            const fieldRef = useRef(null);
+            const valueText = value == null ? '' : value;
+
+            const toggleMenu = () => {
+                if (open) { setOpen(false); return; }
+                if (!triggerRef.current) return;
+                // 必须在用户手势里发起，浏览器才会弹授权框
+                if (KiraFonts.isSupported()) KiraFonts.load();
+                setOpen(true);
+            };
+
+            return (
+                <div ref={fieldRef} className="flex items-stretch bg-zinc-800 rounded border border-zinc-700 focus-within:border-indigo-500 overflow-hidden">
+                    <input type="text" value={valueText} onChange={e => onChange(e.target.value)} placeholder="输入字体名或点右侧选择"
+                        style={{ fontFamily: valueText || undefined }}
+                        className={'flex-1 min-w-0 bg-transparent p-1.5 outline-none ' + (compact ? 'text-[10px]' : 'text-[11px]')} />
+                    <button ref={triggerRef} type="button" onClick={toggleMenu} aria-haspopup="dialog" aria-expanded={open}
+                        title="浏览本机字体" aria-label="浏览本机字体"
+                        className={'font-picker-trigger' + (open ? ' is-open' : '')}>▼</button>
+                    {open && (
+                        <FontMenu fieldRef={fieldRef} triggerRef={triggerRef} value={valueText} bold={bold}
+                            onApply={(next, nextBold) => { onChange(next, nextBold); setOpen(false); }} onClose={() => setOpen(false)} />
+                    )}
+                </div>
+            );
+        };
 
         const SongTitleStyleEditor = ({ group, onChange }) => {
             const style = group.style;
@@ -155,17 +412,8 @@
                     {/* 字体名 */}
                     <div className="flex flex-col gap-0.5">
                         <span className="text-[9px] text-zinc-500">字体</span>
-                        <div className="flex items-stretch bg-zinc-800 rounded border border-zinc-700 overflow-hidden">
-                            <input type="text" value={style.fontFamily} onChange={e=>onChange({fontFamily:e.target.value})} placeholder="输入字体名称"
-                                className="flex-1 min-w-0 bg-transparent p-1.5 text-[10px] outline-none" />
-                            <div className="relative w-7 flex-shrink-0 overflow-hidden">
-                                <select value={style.fontFamily} onChange={e=>onChange({fontFamily:e.target.value})}
-                                    className="absolute right-0 top-0 h-full w-40 opacity-0 cursor-pointer text-[10px]" style={{colorScheme:'dark'}}>
-                                    <FontOptions />
-                                </select>
-                                <span className="absolute inset-0 flex items-center justify-center text-zinc-500 pointer-events-none text-[10px]">▼</span>
-                            </div>
-                        </div>
+                        <FontPicker compact value={style.fontFamily} bold={style.fontBold}
+                            onChange={(v, b) => onChange(b === undefined ? {fontFamily: v} : {fontFamily: v, fontBold: b})} />
                     </div>
                     {/* 大小 / 字距 / 行距（歌名2列，分组3列） */}
                     <div className={"grid gap-2 " + (isTitle?'grid-cols-2':'grid-cols-3')}>
@@ -1161,26 +1409,8 @@
                                 {/* 字体排版 */}
                                 <section className="space-y-2 pt-3 border-t border-zinc-800">
                                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-2 tracking-widest"><Icons.Type className="w-3 h-3"/> 字体排版</label>
-                                        <div className="flex items-stretch bg-zinc-800 rounded border border-zinc-700 focus-within:border-indigo-500 overflow-hidden">
-                                            <input
-                                                type="text"
-                                                value={config.fontFamily}
-                                                onChange={e => setConfig({...config, fontFamily: e.target.value})}
-                                                placeholder="输入字体名…"
-                                                className="flex-1 min-w-0 bg-transparent p-1.5 text-[11px] outline-none"
-                                            />
-                                            <div className="relative w-7 flex-shrink-0 overflow-hidden">
-                                                <select
-                                                    value={config.fontFamily}
-                                                    onChange={e => setConfig({...config, fontFamily: e.target.value})}
-                                                    className="absolute right-0 top-0 h-full w-40 opacity-0 cursor-pointer text-[11px]"
-                                                    style={{ colorScheme: 'dark' }}
-                                                >
-                                                    <FontOptions />
-                                                </select>
-                                                <span className="absolute inset-0 flex items-center justify-center text-zinc-500 pointer-events-none text-[10px]">▼</span>
-                                            </div>
-                                        </div>
+                                        <FontPicker value={config.fontFamily} bold={config.fontBold}
+                                            onChange={(v, b) => setConfig({...config, fontFamily: v, ...(b === undefined ? {} : {fontBold: b})})} />
                                         <div className="grid grid-cols-3 gap-2">
                                         <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.fontBold} onChange={e=>setConfig({...config,fontBold:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">主字加粗</span></label>
                                         <label className="flex items-center gap-2 bg-zinc-800 rounded p-1.5 cursor-pointer"><input type="checkbox" checked={config.rubyBold} onChange={e=>setConfig({...config,rubyBold:e.target.checked})} className="accent-indigo-500 w-3.5 h-3.5"/><span className="text-[10px] text-zinc-300">注音加粗</span></label>

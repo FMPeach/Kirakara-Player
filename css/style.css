@@ -108,6 +108,225 @@ input[type="range"]::-webkit-slider-thumb {
     z-index: 100001; display: flex; align-items: center; justify-content: center;
     animation: fadeIn 0.15s ease;
 }
+/* === 字体选单（配色/圆角/字号与左侧栏既有控件保持一致） === */
+.font-picker-trigger {
+    width: 28px;
+    flex: 0 0 28px;
+    border: 0;
+    border-left: 1px solid #3f3f46;
+    background: transparent;
+    color: #71717a;
+    font-size: 9px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.font-picker-trigger:hover { background: rgba(255,255,255,0.06); color: #d4d4d8; }
+.font-picker-trigger.is-open { background: #4f46e5; color: #fff; }
+
+.font-menu {
+    position: fixed;
+    z-index: 100002;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;   /* 与面板里的输入框（Tailwind rounded = 4px）一致 */
+    background: #18181b;
+    color: #d4d4d8;
+    font: 11px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+    animation: fontMenuIn 0.1s ease;
+}
+@keyframes fontMenuIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* 搜索框：沿用面板里 input 的观感（zinc-800 底 + zinc-700 边 + 4px 圆角） */
+.font-menu-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    margin: 6px 6px 4px;
+    padding: 5px 7px;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    background: #27272a;
+}
+.font-menu-search:focus-within { border-color: #6366f1; }
+.font-menu-search svg { width: 11px; height: 11px; flex: 0 0 11px; color: #71717a; }
+.font-menu-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #e4e4e7;
+    font: inherit;
+    font-size: 11px;
+    outline: none;
+}
+.font-menu-search input::placeholder { color: #52525b; font-family: ui-sans-serif, system-ui, 'Microsoft YaHei', sans-serif; }
+.font-menu-clear {
+    flex: 0 0 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #71717a;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+}
+.font-menu-clear:hover { color: #e4e4e7; }
+
+.font-menu-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 4px 4px;
+    border-top: 1px solid #27272a;
+    scrollbar-width: thin;
+    scrollbar-color: #3f3f46 transparent;
+}
+.font-menu-list::-webkit-scrollbar { width: 4px; }
+.font-menu-list::-webkit-scrollbar-track { background: transparent; }
+.font-menu-list::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+.font-menu-list::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+/* 分组标题：与左栏 section 标题同一套（10px / 加粗 / 灰 / 字距） */
+.font-menu-group-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 5px 4px 3px;
+    background: #18181b;
+    color: #71717a;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+.font-menu-group-title span { color: #52525b; font-weight: 400; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+.font-menu-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 28px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: transparent;
+    color: #d4d4d8;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+}
+.font-menu-item:hover,
+.font-menu-item.is-active { background: #27272a; }
+.font-menu-item.is-active { outline: 1px solid #3f3f46; outline-offset: -1px; }
+/* 字体名本身用该字体渲染（inline style 提供 font-family） */
+.font-menu-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    line-height: 1.4;
+}
+/* 当前已套用的字体：靛蓝色文字，不随键盘上下移动 */
+.font-menu-item.is-current .font-menu-item-name { color: #a5b4fc; }
+
+/* 字重子选项按钮 */
+.font-menu-weight-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    padding: 0 5px;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    background: rgba(39,39,42,0.9);
+    color: #a1a1aa;
+    font: inherit;
+    font-size: 9px;
+    line-height: 15px;
+    cursor: pointer;
+}
+.font-menu-weight-toggle:hover { border-color: #6366f1; color: #e4e4e7; }
+.font-menu-weight-toggle.is-open { border-color: #6366f1; background: #4f46e5; color: #fff; }
+.font-menu-caret { font-size: 6px; line-height: 1; opacity: 0.75; }
+
+.font-menu-weights {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 1px 0 3px 8px;
+    padding: 2px 0 2px 8px;
+    border-left: 1px solid #3f3f46;
+}
+.font-menu-weight-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 6px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #a1a1aa;
+    text-align: left;
+    cursor: pointer;
+}
+.font-menu-weight-item:hover { background: #27272a; color: #e4e4e7; }
+.font-menu-weight-item.is-current { color: #a5b4fc; }
+.font-menu-weight-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.font-menu-weight-meta { flex: 0 0 auto; color: #52525b; font-size: 9px; font-variant-numeric: tabular-nums; }
+.font-menu-weight-item.is-current .font-menu-weight-meta { color: #818cf8; }
+.font-menu-weight-note { padding: 3px 6px 4px; color: #71717a; font-size: 9px; line-height: 1.6; }
+
+.font-menu-empty { padding: 14px 8px; color: #71717a; font-size: 10px; text-align: center; }
+
+.font-menu-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    border-top: 1px solid #27272a;
+    background: #18181b;
+    color: #71717a;
+    font-size: 9px;
+    line-height: 1.6;
+}
+.font-menu-status span { flex: 1; min-width: 0; }
+.font-menu-status.is-busy { color: #818cf8; }
+.font-menu-status.is-warn { color: #fbbf24; }
+.font-menu-retry {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    background: #27272a;
+    color: #d4d4d8;
+    font: inherit;
+    cursor: pointer;
+}
+.font-menu-retry:hover { border-color: #6366f1; color: #fff; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .export-modal {
     background: #1a1a1f; border: 1px solid #333; border-radius: 16px;
