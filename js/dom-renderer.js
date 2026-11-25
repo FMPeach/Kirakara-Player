@@ -286,11 +286,11 @@ function LyricLine({ line, config, currentTime }) {
         const fwRuby = config.rubyBold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(rc.char, fontStr);
-        const domW = measureTotalWidth(rc.char, fs, config.fontFamily, rc.char.length > 1 ? (config.rubyLetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
+        const domW = measureTotalWidth(rc.char, fs, config.fontFamily, cpLength(rc.char) > 1 ? (config.rubyLetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
         // 多字符补偿：Canvas 不含 CSS letter-spacing，补上内部字距
-        const lsComp = rc.char.length > 1 ? (rc.char.length - 1) * (config.rubyLetterSpacing || 0) : 0;
+        const lsComp = cpLength(rc.char) > 1 ? (cpLength(rc.char) - 1) * (config.rubyLetterSpacing || 0) : 0;
         const gLeft = ink.left || 0, gRight = (ink.right || 0) + lsComp || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
@@ -315,7 +315,7 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(g.ruby, fs, config.fontFamily, (config.rubyLetterSpacing || 0), fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const lsComp = g.ruby.length > 1 ? (g.ruby.length - 1) * (config.rubyLetterSpacing || 0) : 0;
+        const lsComp = cpLength(g.ruby) > 1 ? (cpLength(g.ruby) - 1) * (config.rubyLetterSpacing || 0) : 0;
         const gL = ink.left || 0, gR = (ink.right || 0) + lsComp || emW;
         const pL = -gL, pR = gR;
         const oL = pad + pL, oR = pad + pR;
@@ -342,10 +342,10 @@ function LyricLine({ line, config, currentTime }) {
         const fwRuby = config.ruby2Bold ? 'bold ' : '';
         const fontStr = `${fwRuby}${fs}px ${config.fontFamily}`;
         const ink = measureGlyphInk(rc.char, fontStr);
-        const domW = measureTotalWidth(rc.char, fs, config.fontFamily, rc.char.length > 1 ? (config.ruby2LetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
+        const domW = measureTotalWidth(rc.char, fs, config.fontFamily, cpLength(rc.char) > 1 ? (config.ruby2LetterSpacing || 0) : 0, fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const lsComp = rc.char.length > 1 ? (rc.char.length - 1) * (config.ruby2LetterSpacing || 0) : 0;
+        const lsComp = cpLength(rc.char) > 1 ? (cpLength(rc.char) - 1) * (config.ruby2LetterSpacing || 0) : 0;
         const gLeft = ink.left || 0, gRight = (ink.right || 0) + lsComp || emW;
         const pixelL = -gLeft, pixelR = gRight;
         const offsetL = pad + pixelL, offsetR = pad + pixelR;
@@ -368,7 +368,7 @@ function LyricLine({ line, config, currentTime }) {
         const domW = measureTotalWidth(g.ruby2, fs, config.fontFamily, (config.ruby2LetterSpacing || 0), fwRuby.trim() || 'normal');
         const emW = Math.max(ink.emWidth || fs, domW);
         const total = emW + 2 * pad;
-        const lsComp = g.ruby2.length > 1 ? (g.ruby2.length - 1) * (config.ruby2LetterSpacing || 0) : 0;
+        const lsComp = cpLength(g.ruby2) > 1 ? (cpLength(g.ruby2) - 1) * (config.ruby2LetterSpacing || 0) : 0;
         const gL = ink.left || 0, gR = (ink.right || 0) + lsComp || emW;
         const pL = -gL, pR = gR;
         const oL = pad + pL, oR = pad + pR;
@@ -594,7 +594,7 @@ function LyricLine({ line, config, currentTime }) {
             const rIsDual = rRoleColors.length >= 2;
             if (g.rubyChars && g.rubyChars.length > 1) {
                 g.rubyChars.forEach((rc, ri) => {
-                    rubyEls.push(h(RubyMask, { key: ri, text: rc.char, progress: getRubyCharProgress(g, ri), fontSize: config.rubySize, letterSpacing: rc.char.length > 1 ? rls : 0, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined, postSpacing: ri === g.rubyChars.length - 1 ? 0 : rls }));
+                    rubyEls.push(h(RubyMask, { key: ri, text: rc.char, progress: getRubyCharProgress(g, ri), fontSize: config.rubySize, letterSpacing: cpLength(rc.char) > 1 ? rls : 0, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined, postSpacing: ri === g.rubyChars.length - 1 ? 0 : rls }));
                 });
             } else {
                 rubyEls.push(h(RubyMask, { key: 'r', text: g.ruby, progress: getRubyProgress(g), fontSize: config.rubySize, letterSpacing: rls, fontFamily: config.fontFamily, fontWeight: config.rubyBold ? 'bold' : 'normal', colorBefore: rcb, colorAfter: rca, strokeBefore: rsb, strokeAfter: rsa, strokeWidth: rsw, roleColors: rIsDual ? rRoleColors : undefined, postSpacing: 0 }));
@@ -647,7 +647,7 @@ function LyricLine({ line, config, currentTime }) {
             const r2IsDual = r2RoleColors.length >= 2;
             if (g.ruby2Chars && g.ruby2Chars.length > 1) {
                 g.ruby2Chars.forEach((rc, ri) => {
-                    ruby2Els.push(h(RubyMask, { key: ri, text: rc.char, progress: getRuby2CharProgress(g, ri), fontSize: config.ruby2Size, letterSpacing: rc.char.length > 1 ? r2ls : 0, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined, postSpacing: ri === g.ruby2Chars.length - 1 ? 0 : r2ls }));
+                    ruby2Els.push(h(RubyMask, { key: ri, text: rc.char, progress: getRuby2CharProgress(g, ri), fontSize: config.ruby2Size, letterSpacing: cpLength(rc.char) > 1 ? r2ls : 0, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined, postSpacing: ri === g.ruby2Chars.length - 1 ? 0 : r2ls }));
                 });
             } else {
                 ruby2Els.push(h(RubyMask, { key: 'r2', text: g.ruby2, progress: getRuby2Progress(g), fontSize: config.ruby2Size, letterSpacing: r2ls, fontFamily: config.fontFamily, fontWeight: config.ruby2Bold ? 'bold' : 'normal', colorBefore: r2cb, colorAfter: r2ca, strokeBefore: r2sb, strokeAfter: r2sa, strokeWidth: r2sw, roleColors: r2IsDual ? r2RoleColors : undefined, postSpacing: 0 }));

@@ -141,7 +141,9 @@ function parseLyrics(lrcRaw, entryBuf, config) {
             // 转义分支顺序敏感：\\ 必须排在 \【 前，否则 "\\【"（字面\ + 角色标签）
             // 会被 (\\【) 误匹配成单个字面【。与 C++ lrc_parser 从左往右语义一致：
             //   \\ → 字面 \; \【 → 字面 【; 其他 \x 原样保留。
-            const lexer = /(\\\\)|(\\【)|(【@[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|([\s\S])/g;
+            // 末分支按 Unicode 码位取单个字符：先匹配完整代理对，再回落到单个码元，
+            // 保证补充平面字符作为一个整体进入 token 流。
+            const lexer = /(\\\\)|(\\【)|(【@[^】]+】)|(\[\d+:\d+(?:[:\.]\d+)?\])|(\{([^|]+)\|([^}]+)\})|((?:[\uD800-\uDBFF][\uDC00-\uDFFF]|[\s\S]))/g;
             let m;
             while ((m = lexer.exec(line)) !== null) {
                 if (m[1]) {
@@ -160,8 +162,9 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                         currentRole = candidate;
                         curExplicit = true;
                     } else {
-                        for (let k = 0; k < m[3].length; k++) {
-                            tokens.push({ type: 'char', text: m[3][k], role: currentRole, roleExplicit: curExplicit });
+                        // 按码位拆分
+                        for (const ch of m[3]) {
+                            tokens.push({ type: 'char', text: ch, role: currentRole, roleExplicit: curExplicit });
                             curExplicit = false;
                         }
                     }
@@ -190,8 +193,8 @@ function parseLyrics(lrcRaw, entryBuf, config) {
                         currentTimeTag = timeKA.baseTime;
                     }
 
-                    // 统一逐字解析汉字
-                    const kanjiLexer = /(\[\d+:\d+(?:[:\.]\d+)?\])|([\s\S])/g;
+                    // 统一逐字解析汉字（按 Unicode 码位切分：一个码位一个 token）
+                    const kanjiLexer = /(\[\d+:\d+(?:[:\.]\d+)?\])|([\uD800-\uDBFF][\uDC00-\uDFFF]|[\s\S])/g;
                     let jm;
                     const kanjiTokens = [];
                     let charCount = 0;

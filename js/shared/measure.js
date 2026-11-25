@@ -2,6 +2,17 @@
 
 const glyphCache = {};
 
+// 按 Unicode 码位计算字符个数：一个补充平面字符算 1 个，而不是 2 个 UTF-16 码元。
+// 用于一切「语义上是几个字」的判断，例如字距补偿与逐字走色。
+function cpLength(text) {
+    const s = text == null ? '' : String(text);
+    for (let i = 0; i < s.length; i++) {
+        const code = s.charCodeAt(i);
+        if (code >= 0xD800 && code <= 0xDBFF) return Array.from(s).length; // 含代理对，交给展开运算符
+    }
+    return s.length;
+}
+
 // Canvas 测量字形 ink 边界（不含 letterSpacing）
 function measureGlyphInk(text, fontStr) {
     const key = `ink|${text}|${fontStr}`;
